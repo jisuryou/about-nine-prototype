@@ -42,21 +42,3 @@ python backend/app.py
 
 ## 개발자
 [Jisu Ryou]
-```
-
-### `backend/requirements.txt`
-```
-Flask==3.0.0
-Flask-CORS==4.0.0
-firebase-admin==6.3.0
-python-dotenv==1.0.0
-requests==2.31.0
-```
-
-### `.env` (템플릿 - 실제 값은 나중에 입력)
-```
-SECRET_KEY=yTMkGMgKr1IXi03aJ4ZX3m92BYvszaAK1RHOSKXB0pVk
-FIREBASE_DB_URL=https://about-nine-prototype-46a2c-default-rtdb.asia-southeast1.firebasedatabase.app/
-<!-- SPOTIFY_CLIENT_ID=your-spotify-client-id
-SPOTIFY_CLIENT_SECRET=your-spotify-client-secret -->
-AGORA_APP_ID=ebc1a1bf4b4347cd896087d76d9e32db
