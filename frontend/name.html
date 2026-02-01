@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>이름 입력</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/firebase-config.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div>
+      <h1>tell us your<br>name</h1>
+      
+      <input 
+        type="text" 
+        id="firstName" 
+        placeholder="first name"
+        autocomplete="given-name"
+      >
+      
+      <input 
+        type="text" 
+        id="lastName" 
+        placeholder="last name"
+        autocomplete="family-name"
+      >
+      
+      <span id="error" class="error hidden"></span>
+    </div>
+    
+    <button onclick="saveName()">next</button>
+  </div>
+  
+  <script src="js/common.js"></script>
+  <script>
+    async function saveName() {
+      const firstName = document.getElementById('firstName').value.trim();
+      const lastName = document.getElementById('lastName').value.trim();
+      
+      hideError('error');
+      
+      if (!firstName || !lastName) {
+        showError('error', 'please enter your full name');
+        return;
+      }
+      
+      saveToLocal('firstName', firstName);
+      saveToLocal('lastName', lastName);
+      
+      try {
+        showLoading('creating your profile...');
+        
+        // 서버에 사용자 등록
+        const result = await apiCall('/register', 'POST', {
+          phone: getFromLocal('phone'),
+          firstName: firstName,
+          lastName: lastName,
+          birthdate: getFromLocal('birthdate'),
+          age: getFromLocal('age')
+        });
+        
+        hideLoading();
+        
+        if (result.success) {
+          saveToLocal('user_id', result.user_id);
+          navigateTo('location-permission.html');
+        }
+      } catch (error) {
+        hideLoading();
+        showError('error', 'failed to create profile');
+      }
+    }
+    
+    document.getElementById('lastName').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') saveName();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chemistry Score Details</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/firebase-config.js"></script>
+  <style>
+    body {
+      padding: 20px;
+    }
+    
+    .score-container {
+      max-width: 500px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    
+    .back-btn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--bg-card);
+      border: none;
+      color: var(--text-primary);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .score-title {
+      font-size: 18px;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    
+    .score-circle {
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 40px;
+    }
+    
+    .score-inner {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: var(--bg-dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .score-number {
+      font-size: 64px;
+      font-weight: 700;
+      color: var(--accent-yellow);
+    }
+    
+    .score-label {
+      font-size: 14px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .score-description {
+      font-size: 18px;
+      color: var(--text-primary);
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+    
+    .details-section {
+      text-align: left;
+      background: var(--bg-card);
+      border-radius: 20px;
+      padding: 25px;
+      margin-bottom: 20px;
+    }
+    
+    .detail-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .detail-item:last-child {
+      border-bottom: none;
+    }
+    
+    .detail-label {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    
+    .detail-value {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .continue-btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent-blue);
+      color: white;
+      border: none;
+      border-radius: 25px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <button class="back-btn" onclick="history.back()">←</button>
+  
+  <div class="score-container">
+    <div class="score-title">chemistry score</div>
+    
+    <div class="score-circle">
+      <div class="score-inner">
+        <div class="score-number" id="scoreNumber">0</div>
+        <div class="score-label">/ 100</div>
+      </div>
+    </div>
+    
+    <p class="score-description" id="scoreDescription"></p>
+    
+    <div class="details-section">
+      <div class="detail-item">
+        <span class="detail-label">conversation flow</span>
+        <span class="detail-value" id="flowScore">-</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">shared interests</span>
+        <span class="detail-value" id="interestsScore">-</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">mutual engagement</span>
+        <span class="detail-value" id="engagementScore">-</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">vibe match</span>
+        <span class="detail-value" id="vibeScore">-</span>
+      </div>
+    </div>
+    
+    <button class="continue-btn" onclick="navigateTo('chat-end.html')">
+      continue
+    </button>
+  </div>
+  
+  <script src="js/common.js"></script>
+  <script>
+    const score = getFromLocal('chemistry_score') || 75;
+    const label = getFromLocal('chemistry_label') || 'good';
+    
+    // 점수 애니메이션
+    let currentScore = 0;
+    const interval = setInterval(() => {
+      currentScore += 2;
+      if (currentScore >= score) {
+        currentScore = score;
+        clearInterval(interval);
+      }
+      document.getElementById('scoreNumber').textContent = currentScore;
+    }, 30);
+    
+    // 설명
+    let description = '';
+    if (score >= 85) {
+      description = 'amazing chemistry! you two really clicked and had great energy together.';
+    } else if (score >= 75) {
+      description = 'great connection! you had good vibes and interesting conversations.';
+    } else {
+      description = 'nice chat! you shared some common interests and had a pleasant conversation.';
+    }
+    document.getElementById('scoreDescription').textContent = description;
+    
+    // 세부 점수 (프로토타입: 랜덤)
+    document.getElementById('flowScore').textContent = Math.floor(Math.random() * 20) + 75 + '%';
+    document.getElementById('interestsScore').textContent = Math.floor(Math.random() * 20) + 70 + '%';
+    document.getElementById('engagementScore').textContent = Math.floor(Math.random() * 20) + 75 + '%';
+    document.getElementById('vibeScore').textContent = Math.floor(Math.random() * 20) + 70 + '%';
+  </script>
+</body>
+</html>

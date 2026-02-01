@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 환경변수
+.env
+serviceAccountKey.json
+
+# VSCode
+.vscode/
+
+# Mac
+.DS_Store
+
+# Firebase
+firebase-debug.log
+.firebase/
+
+# 기타
+*.log

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>위치 권한</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/firebase-config.js"></script>
+  <style>
+    .location-container {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 500px;
+    }
+    
+    .location-icon {
+      font-size: 100px;
+      margin: 60px 0 40px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.8; }
+    }
+    
+    .location-title {
+      font-size: 32px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      line-height: 1.3;
+    }
+    
+    .location-description {
+      color: var(--text-secondary);
+      line-height: 1.8;
+      margin-bottom: 40px;
+      font-size: 15px;
+    }
+    
+    .location-description strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    
+    .permission-note {
+      background: var(--bg-card);
+      padding: 20px;
+      border-radius: 15px;
+      margin-bottom: 30px;
+      border-left: 4px solid var(--accent-yellow);
+    }
+    
+    .permission-note p {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 0;
+    }
+    
+    .skip-btn {
+      background: transparent;
+      border: 2px solid var(--border-color);
+      color: var(--text-secondary);
+      margin-top: 15px;
+    }
+    
+    .skip-btn:hover {
+      border-color: var(--text-secondary);
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+  <div class="container location-container">
+    <div>
+      <div class="location-icon">📍</div>
+      
+      <h1 class="location-title">enable location<br>services</h1>
+      
+      <div class="location-description">
+        we need your location to show you<br>
+        people nearby within 10km<br><br>
+        <strong>location access is required<br>
+        to use this app</strong>
+      </div>
+      
+      <div class="permission-note">
+        <p>
+          💡 your location is only used to find matches nearby.
+          we never share your exact location with other users.
+        </p>
+      </div>
+      
+      <span id="error" class="error hidden"></span>
+    </div>
+    
+    <div>
+      <button onclick="requestLocation()">allow location access</button>
+      <button class="skip-btn" onclick="skipForNow()">skip for now</button>
+    </div>
+  </div>
+  
+  <script src="js/common.js"></script>
+  <script>
+    // 브라우저 위치 권한 체크
+    async function checkLocationPermission() {
+      if (!navigator.geolocation) {
+        return 'not_supported';
+      }
+      
+      try {
+        const permission = await navigator.permissions.query({ name: 'geolocation' });
+        return permission.state; // 'granted', 'denied', or 'prompt'
+      } catch (error) {
+        return 'unknown';
+      }
+    }
+    
+    // 위치 권한 요청
+    async function requestLocation() {
+      hideError('error');
+      
+      if (!navigator.geolocation) {
+        showError('error', 'geolocation is not supported by your browser');
+        return;
+      }
+      
+      showLoading('requesting location...');
+      
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          
+          console.log('📍 Location obtained:', latitude, longitude);
+          
+          // 로컬 스토리지에 저장
+          saveToLocal('location', { latitude, longitude });
+          
+          try {
+            // 서버에 위치 정보 저장
+            await apiCall('/update-location', 'POST', {
+              user_id: getFromLocal('user_id'),
+              latitude,
+              longitude
+            });
+            
+            hideLoading();
+            
+            // 다음 페이지로 이동
+            navigateTo('onboarding-chat.html');
+            
+          } catch (error) {
+            console.error('서버 저장 실패:', error);
+            hideLoading();
+            
+            // 프로토타입: 서버 저장 실패해도 진행
+            navigateTo('onboarding-chat.html');
+          }
+        },
+        (error) => {
+          hideLoading();
+          
+          let errorMessage = '';
+          
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = 'location access denied. please enable it in your browser settings to continue.';
+              showBrowserInstructions();
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = 'location information unavailable. please try again.';
+              break;
+            case error.TIMEOUT:
+              errorMessage = 'request timed out. please try again.';
+              break;
+            default:
+              errorMessage = 'failed to get your location. please try again.';
+          }
+          
+          showError('error', errorMessage);
+          console.error('Location error:', error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    }
+    
+    // 브라우저별 설정 안내
+    function showBrowserInstructions() {
+      const userAgent = navigator.userAgent.toLowerCase();
+      let instructions = '';
+      
+      if (userAgent.includes('chrome')) {
+        instructions = '⚙️ Chrome: Click the 🔒 icon in the address bar → Site settings → Location → Allow';
+      } else if (userAgent.includes('safari')) {
+        instructions = '⚙️ Safari: Settings → Privacy & Security → Location Services → Safari → Allow';
+      } else if (userAgent.includes('firefox')) {
+        instructions = '⚙️ Firefox: Click the 🔒 icon → Permissions → Location → Allow';
+      }
+      
+      if (instructions) {
+        setTimeout(() => {
+          alert(instructions);
+        }, 500);
+      }
+    }
+    
+    // 임시로 건너뛰기 (개발/테스트용)
+    function skipForNow() {
+      if (confirm('⚠️ Location is required to use this app. Skip for testing?')) {
+        // 프로토타입: 더미 위치 사용 (서울 시청)
+        const dummyLocation = {
+          latitude: 37.5665,
+          longitude: 126.9780
+        };
+        
+        saveToLocal('location', dummyLocation);
+        saveToLocal('location_skipped', true);
+        
+        console.log('📍 Using dummy location:', dummyLocation);
+        
+        navigateTo('onboarding-chat.html');
+      }
+    }
+    
+    // 페이지 로드 시 권한 상태 확인
+    window.onload = async () => {
+      const permissionState = await checkLocationPermission();
+      
+      if (permissionState === 'granted') {
+        // 이미 권한이 있으면 자동으로 위치 가져오기
+        console.log('✅ Location permission already granted');
+        requestLocation();
+      } else if (permissionState === 'denied') {
+        showError('error', 'location access was denied. please enable it in your browser settings.');
+        showBrowserInstructions();
+      }
+    };
+  </script>
+</body>
+</html>

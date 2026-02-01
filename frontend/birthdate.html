@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>생년월일 입력</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/firebase-config.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div>
+      <h1>tell us your<br>birth date</h1>
+      
+      <div class="date-inputs">
+        <input type="text" id="year" placeholder="yyyy" maxlength="4">
+        <input type="text" id="month" placeholder="mm" maxlength="2">
+        <input type="text" id="day" placeholder="dd" maxlength="2">
+      </div>
+      
+      <span id="error" class="error hidden"></span>
+    </div>
+    
+    <button onclick="checkAge()">next</button>
+  </div>
+  
+  <script src="js/common.js"></script>
+  <script>
+    const yearInput = document.getElementById('year');
+    const monthInput = document.getElementById('month');
+    const dayInput = document.getElementById('day');
+    
+    // 숫자만 입력
+    [yearInput, monthInput, dayInput].forEach(input => {
+      input.addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/[^0-9]/g, '');
+        
+        // 자동 다음 필드 이동
+        if (input === yearInput && e.target.value.length === 4) {
+          monthInput.focus();
+        } else if (input === monthInput && e.target.value.length === 2) {
+          dayInput.focus();
+        }
+      });
+    });
+    
+    function checkAge() {
+      const year = yearInput.value;
+      const month = monthInput.value.padStart(2, '0');
+      const day = dayInput.value.padStart(2, '0');
+      
+      hideError('error');
+      
+      if (!year || !month || !day) {
+        showError('error', 'please enter your full birth date');
+        return;
+      }
+      
+      if (year.length !== 4 || parseInt(month) > 12 || parseInt(day) > 31) {
+        showError('error', 'please enter a valid date');
+        return;
+      }
+      
+      const birthDate = `${year}-${month}-${day}`;
+      const age = calculateAge(birthDate);
+      
+      // 만 18세 미만 체크
+      if (age < 18) {
+        saveToLocal('birthdate', birthDate);
+        navigateTo('underage.html');
+        return;
+      }
+      
+      // 만 19세 이하는 가입 불가 (명세서 기준)
+      if (age <= 19) {
+        showError('error', 'sorry, you must be 19 or older to use this service');
+        return;
+      }
+      
+      saveToLocal('birthdate', birthDate);
+      saveToLocal('age', age);
+      navigateTo('name.html');
+    }
+    
+    dayInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') checkAge();
+    });
+  </script>
+</body>
+</html>

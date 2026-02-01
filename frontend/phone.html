@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>휴대폰 번호 입력</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/firebase-config.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div>
+      <h1>tell us your<br>phone number</h1>
+      
+      <input 
+        type="tel" 
+        id="phone" 
+        placeholder="+1 0-000-0000"
+        maxlength="15"
+        autocomplete="tel"
+      >
+      
+      <span id="error" class="error hidden"></span>
+      
+      <div class="terms-text">
+        by signing up, you are agreeing to our 
+        <a href="#" target="_blank">terms of service</a> and 
+        <a href="#" target="_blank">privacy policy</a>
+      </div>
+    </div>
+    
+    <button onclick="sendOTP()">next</button>
+  </div>
+  
+  <script src="js/common.js"></script>
+  <script>
+    const phoneInput = document.getElementById('phone');
+    
+    // 전화번호 포맷팅
+    phoneInput.addEventListener('input', (e) => {
+      let value = e.target.value.replace(/[^0-9+]/g, '');
+      
+      // +1로 시작하도록
+      if (!value.startsWith('+1')) {
+        value = '+1 ' + value.replace(/^\+?1?\s?/, '');
+      }
+      
+      e.target.value = value;
+    });
+    
+    async function sendOTP() {
+      const phone = phoneInput.value.replace(/[^0-9]/g, '');
+      
+      hideError('error');
+      
+      // 최소 10자리 (미국 번호)
+      if (phone.length < 11) {
+        showError('error', 'a valid number is required to continue');
+        return;
+      }
+      
+      try {
+        showLoading('sending code...');
+        const result = await apiCall('/send-sms', 'POST', { phone });
+        hideLoading();
+        
+        if (result.success) {
+          // 전화번호와 인증코드를 localStorage에 저장
+          saveToLocal('phone', phone);
+          saveToLocal('verification_code', result.debug_code); // 프로토타입용
+          navigateTo('otp.html');
+        }
+      } catch (error) {
+        hideLoading();
+        showError('error', 'failed to send verification code');
+      }
+    }
+    
+    phoneInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendOTP();
+    });
+  </script>
+</body>
+</html>

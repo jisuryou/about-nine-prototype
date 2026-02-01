@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Nine</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/firebase-config.js"></script>
+  <style>
+    body {
+      padding: 0;
+      align-items: flex-start;
+    }
+    
+    .main-container {
+      width: 100%;
+      max-width: 500px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    /* 헤더 */
+    .header {
+      padding: 20px;
+      text-align: center;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .app-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    /* 탭 네비게이션 */
+    .tabs {
+      display: flex;
+      background: var(--bg-dark);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    
+    .tab {
+      flex: 1;
+      padding: 16px;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s;
+      border-bottom: 3px solid transparent;
+    }
+    
+    .tab.active {
+      color: var(--text-primary);
+      border-bottom-color: var(--accent-yellow);
+    }
+    
+    .tab:hover {
+      color: var(--text-primary);
+    }
+    
+    /* 컨텐츠 영역 */
+    .content {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      padding-bottom: 80px;
+    }
+    
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    
+    /* 유저 카드 */
+    .user-list {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    
+    .user-card {
+      background: var(--bg-card);
+      border-radius: 15px;
+      padding: 20px;
+      border: 2px solid var(--border-color);
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+    
+    .user-card:hover {
+      border-color: var(--accent-yellow);
+      transform: translateY(-2px);
+    }
+    
+    .user-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 15px;
+    }
+    
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+    
+    .user-avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    
+    .user-details {
+      flex: 1;
+    }
+    
+    .user-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    
+    .user-age {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    
+    .match-score {
+      background: var(--accent-yellow);
+      color: var(--bg-dark);
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    
+    .action-button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 20px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: var(--accent-blue);
+      color: white;
+    }
+    
+    .action-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(91, 127, 255, 0.4);
+    }
+    
+    .playlist-hint {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-color);
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+    
+    /* AI Match Closed 상태 */
+    .closed-state {
+      text-align: center;
+      padding: 80px 40px;
+      color: var(--text-secondary);
+    }
+    
+    .closed-icon {
+      font-size: 80px;
+      margin-bottom: 30px;
+      opacity: 0.3;
+    }
+    
+    .closed-message {
+      font-size: 18px;
+      line-height: 1.8;
+      color: var(--text-primary);
+      margin-bottom: 20px;
+    }
+    
+    .closed-time {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+    
+    /* 하단 네비게이션 */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-darker);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-around;
+      padding: 12px 0;
+    }
+    
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      padding: 8px 20px;
+      border-radius: 12px;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+    
+    .nav-item.active {
+      color: var(--accent-yellow);
+      background: var(--bg-card);
+    }
+    
+    .nav-icon {
+      font-size: 24px;
+    }
+    
+    .nav-label {
+      font-size: 11px;
+      font-weight: 500;
+    }
+    
+    /* 모달 */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .modal.active {
+      display: flex;
+    }
+    
+    .modal-content {
+      background: var(--bg-card);
+      border-radius: 20px;
+      padding: 30px;
+      max-width: 400px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
+      animation: slideUp 0.3s ease-out;
+    }
+    
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .modal-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--bg-darker);
+      border: none;
+      color: var(--text-primary);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+    }
+    
+    .modal-close:hover {
+      background: var(--border-color);
+    }
+    
+    .track-item-modal {
+      display: flex;
+      align-items: center;
+      padding: 12px;
+      background: var(--bg-darker);
+      border-radius: 12px;
+      margin-bottom: 10px;
+    }
+    
+    .track-image-modal {
+      width: 50px;
+      height: 50px;
+      border-radius: 8px;
+      margin-right: 15px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    
+    .track-info-modal {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .track-name-modal {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 15px;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .track-artist-modal {
+      color: var(--text-secondary);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .modal-action {
+      margin-top: 20px;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+    
+    .empty-icon {
+      font-size: 60px;
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <!-- 헤더 -->
+    <div class="header">
+      <div class="app-title">about nine</div>
+    </div>
+    
+    <!-- 탭 -->
+    <div class="tabs">
+      <button class="tab" id="loungeTab" onclick="switchTab('lounge')">lounge</button>
+      <button class="tab" id="aiMatchTab" onclick="switchTab('ai-match')">ai match</button>
+    </div>
+    
+    <!-- 컨텐츠 -->
+    <div class="content" id="content">
+      <!-- Lounge 컨텐츠 -->
+      <div id="loungeContent">
+        <p class="subtitle">pick whoever feels right</p>
+        <div class="user-list" id="userList">
+          <!-- 유저 카드들이 여기에 추가됩니다 -->
+        </div>
+      </div>
+      
+      <!-- AI Match 컨텐츠 -->
+      <div id="aiMatchContent" style="display: none;">
+        <!-- AI Match Open 시 -->
+        <div id="aiMatchOpen" style="display: none;">
+          <p class="subtitle">ai-powered recommendations</p>
+          <div class="user-list" id="aiUserList">
+            <!-- AI 추천 유저들이 여기에 추가됩니다 -->
+          </div>
+        </div>
+        
+        <!-- AI Match Closed 시 -->
+        <div id="aiMatchClosed" class="closed-state">
+          <div class="closed-icon">🌙</div>
+          <div class="closed-message">
+            the matching begins at 8 p.m.<br>
+            and closes at 2 a.m.
+          </div>
+          <div class="closed-time">
+            come back during matching hours!
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 하단 네비게이션 -->
+    <div class="bottom-nav">
+      <div class="nav-item active">
+        <div class="nav-icon">✳️</div>
+        <div class="nav-label">home</div>
+      </div>
+      <div class="nav-item" onclick="navigateTo('history.html')">
+        <div class="nav-icon">💬</div>
+        <div class="nav-label">history</div>
+      </div>
+      <div class="nav-item" onclick="navigateTo('edit-profile.html')">
+        <div class="nav-icon">👤</div>
+        <div class="nav-label">profile</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 플레이리스트 모달 -->
+  <div class="modal" id="playlistModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title" id="modalUserName">User's Playlist</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div id="modalPlaylist">
+        <!-- 플레이리스트가 여기에 표시됩니다 -->
+      </div>
+      <div class="modal-action">
+        <button class="action-button" onclick="startTalkFromModal()">start talk</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="js/common.js"></script>
+  <script>
+    const currentUserId = getFromLocal('user_id');
+    const myProfile = getFromLocal('onboarding_profile');
+    const myLocation = getFromLocal('location');
+    
+    let allUsers = [];
+    let aiMatchUsers = [];
+    let currentTab = 'lounge';
+    let selectedUser = null;
+    
+    // AI Match 시간 체크 (오후 8시 ~ 새벽 2시)
+    function isAIMatchTime() {
+      const now = new Date();
+      const hour = now.getHours();
+      
+      // 20시(8pm) ~ 23시(11pm) 또는 0시(12am) ~ 1시(1am)
+      return (hour >= 20 && hour <= 23) || (hour >= 0 && hour <= 1);
+    }
+    
+    // 페이지 로드 시
+    window.onload = async () => {
+      await loadUsers();
+      
+      // 시간대에 따라 기본 탭 선택
+      if (isAIMatchTime()) {
+        switchTab('ai-match');
+      } else {
+        switchTab('lounge');
+      }
+    };
+    
+    // 탭 전환
+    function switchTab(tab) {
+      currentTab = tab;
+      
+      // 탭 버튼 활성화
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      
+      if (tab === 'lounge') {
+        document.getElementById('loungeTab').classList.add('active');
+        document.getElementById('loungeContent').style.display = 'block';
+        document.getElementById('aiMatchContent').style.display = 'none';
+      } else {
+        document.getElementById('aiMatchTab').classList.add('active');
+        document.getElementById('loungeContent').style.display = 'none';
+        document.getElementById('aiMatchContent').style.display = 'block';
+        
+        // AI Match 시간대 체크
+        if (isAIMatchTime()) {
+          document.getElementById('aiMatchClosed').style.display = 'none';
+          document.getElementById('aiMatchOpen').style.display = 'block';
+          
+          // AI 매칭 로드
+          if (aiMatchUsers.length === 0) {
+            loadAIMatches();
+          }
+        } else {
+          document.getElementById('aiMatchClosed').style.display = 'block';
+          document.getElementById('aiMatchOpen').style.display = 'none';
+        }
+      }
+    }
+    
+    // 유저 목록 로드
+    async function loadUsers() {
+      try {
+        showLoading('loading users...');
+        
+        // 프로토타입: 더미 유저 데이터 생성
+        const mockUsers = generateMockUsers();
+        
+        // 필터링: 성별, 나이대, 거리(10km)에 맞는 유저만
+        const filteredUsers = filterUsers(mockUsers);
+        
+        allUsers = filteredUsers;
+        hideLoading();
+        displayUsers(allUsers, 'userList');
+        
+      } catch (error) {
+        hideLoading();
+        console.error('유저 로드 오류:', error);
+        document.getElementById('userList').innerHTML = '<div class="empty-state"><div class="empty-icon">😔</div><p>failed to load users</p></div>';
+      }
+    }
+    
+    // 더미 유저 생성
+    function generateMockUsers() {
+      const femaleNames = [
+        ['Sarah', 'Miller'],
+        ['Emma', 'Watson'],
+        ['Olivia', 'Davis'],
+        ['Sophia', 'Moore'],
+        ['Isabella', 'Taylor'],
+        ['Mia', 'Anderson'],
+        ['Charlotte', 'Thomas'],
+        ['Amelia', 'Jackson']
+      ];
+      
+      const maleNames = [
+        ['Tommy', 'Hills'],
+        ['Joshua', 'Cohen'],
+        ['Michael', 'Brown'],
+        ['James', 'Wilson'],
+        ['William', 'Martinez'],
+        ['Alexander', 'Garcia'],
+        ['Daniel', 'Rodriguez'],
+        ['Matthew', 'Lee']
+      ];
+      
+      const nonBinaryNames = [
+        ['Alex', 'Kim'],
+        ['Jordan', 'Park'],
+        ['Casey', 'Chen']
+      ];
+      
+      const playlists = [
+        [
+          { name: 'Blinding Lights', artist: 'The Weeknd', emoji: '🌃' },
+          { name: 'Save Your Tears', artist: 'The Weeknd', emoji: '💧' },
+          { name: 'Starboy', artist: 'The Weeknd', emoji: '⭐' }
+        ],
+        [
+          { name: 'Levitating', artist: 'Dua Lipa', emoji: '✨' },
+          { name: 'Don\'t Start Now', artist: 'Dua Lipa', emoji: '💃' },
+          { name: 'Physical', artist: 'Dua Lipa', emoji: '🎵' }
+        ],
+        [
+          { name: 'As It Was', artist: 'Harry Styles', emoji: '🎸' },
+          { name: 'Watermelon Sugar', artist: 'Harry Styles', emoji: '🍉' },
+          { name: 'Golden', artist: 'Harry Styles', emoji: '🌅' }
+        ],
+        [
+          { name: 'Anti-Hero', artist: 'Taylor Swift', emoji: '🦹' },
+          { name: 'Shake It Off', artist: 'Taylor Swift', emoji: '💫' },
+          { name: 'Blank Space', artist: 'Taylor Swift', emoji: '🖤' }
+        ],
+        [
+          { name: 'flowers', artist: 'Miley Cyrus', emoji: '🌸' },
+          { name: 'Wrecking Ball', artist: 'Miley Cyrus', emoji: '🔨' },
+          { name: 'Party In The USA', artist: 'Miley Cyrus', emoji: '🎉' }
+        ]
+      ];
+      
+      const users = [];
+      
+      // 여성 유저 생성 (8명)
+      femaleNames.forEach((name, i) => {
+        users.push({
+          id: `female_${i + 1}`,
+          firstName: name[0],
+          lastName: name[1],
+          age: 22 + Math.floor(Math.random() * 12), // 22-33세
+          gender: 'woman',
+          location: {
+            latitude: myLocation.latitude + (Math.random() - 0.5) * 0.08,
+            longitude: myLocation.longitude + (Math.random() - 0.5) * 0.08
+          },
+          playlist: playlists[i % playlists.length]
+        });
+      });
+      
+      // 남성 유저 생성 (8명)
+      maleNames.forEach((name, i) => {
+        users.push({
+          id: `male_${i + 1}`,
+          firstName: name[0],
+          lastName: name[1],
+          age: 24 + Math.floor(Math.random() * 14), // 24-37세
+          gender: 'man',
+          location: {
+            latitude: myLocation.latitude + (Math.random() - 0.5) * 0.08,
+            longitude: myLocation.longitude + (Math.random() - 0.5) * 0.08
+          },
+          playlist: playlists[i % playlists.length]
+        });
+      });
+      
+      // 논바이너리 유저 생성 (3명)
+      nonBinaryNames.forEach((name, i) => {
+        users.push({
+          id: `nonbinary_${i + 1}`,
+          firstName: name[0],
+          lastName: name[1],
+          age: 25 + Math.floor(Math.random() * 8), // 25-32세
+          gender: 'non-binary',
+          location: {
+            latitude: myLocation.latitude + (Math.random() - 0.5) * 0.08,
+            longitude: myLocation.longitude + (Math.random() - 0.5) * 0.08
+          },
+          playlist: playlists[i % playlists.length]
+        });
+      });
+      
+      console.log('📊 Generated users:', users.length);
+      console.log('   - Women:', users.filter(u => u.gender === 'woman').length);
+      console.log('   - Men:', users.filter(u => u.gender === 'man').length);
+      console.log('   - Non-binary:', users.filter(u => u.gender === 'non-binary').length);
+      
+      return users;
+    }
+    
+    // 유저 필터링
+    function filterUsers(users) {
+      // 프로필이 없으면 모든 유저 반환 (테스트용)
+      if (!myProfile || !myProfile.sexual_orientation || !myProfile.age_preference) {
+        console.log('⚠️ No profile found, showing all users');
+        return users;
+      }
+      
+      const filtered = users.filter(user => {
+        // 성별 필터링
+        const sexualOrientation = myProfile.sexual_orientation;
+        let genderMatch = false;
+        
+        if (sexualOrientation === 'all types of genders') {
+          genderMatch = true;
+        } else if (sexualOrientation === 'men') {
+          genderMatch = user.gender === 'man';
+        } else if (sexualOrientation === 'women') {
+          genderMatch = user.gender === 'woman';
+        } else if (sexualOrientation === 'men and women') {
+          genderMatch = user.gender === 'man' || user.gender === 'woman';
+        } else if (sexualOrientation === 'men and non-binary people') {
+          genderMatch = user.gender === 'man' || user.gender === 'non-binary';
+        } else if (sexualOrientation === 'women and non-binary people') {
+          genderMatch = user.gender === 'woman' || user.gender === 'non-binary';
+        }
+        
+        // 나이 필터링
+        const agePreference = myProfile.age_preference;
+        const ageMatch = agePreference ? 
+          (user.age >= agePreference.min && user.age <= agePreference.max) : 
+          true;
+        
+        return genderMatch && ageMatch;
+      });
+      
+      console.log('🔍 Filtering results:');
+      console.log('   - Sexual orientation:', myProfile.sexual_orientation);
+      console.log('   - Age preference:', myProfile.age_preference);
+      console.log('   - Total users:', users.length);
+      console.log('   - Filtered users:', filtered.length);
+      
+      return filtered;
+    }
+    
+    // AI 매칭 로드
+    async function loadAIMatches() {
+      try {
+        showLoading('finding your matches...');
+        
+        // 프로토타입: 랜덤으로 3명 선택하고 매칭 점수 추가
+        aiMatchUsers = allUsers
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 3)
+          .map(user => ({
+            ...user,
+            matchScore: Math.floor(Math.random() * 30) + 70 // 70-99 점수
+          }));
+        
+        hideLoading();
+        displayUsers(aiMatchUsers, 'aiUserList', true);
+        
+      } catch (error) {
+        hideLoading();
+        console.error('AI 매칭 오류:', error);
+      }
+    }
+    
+    // 유저 목록 표시
+    function displayUsers(users, containerId, showScore = false) {
+      const container = document.getElementById(containerId);
+      
+      if (users.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><p>no users found nearby</p></div>';
+        return;
+      }
+      
+      container.innerHTML = users.map(user => `
+        <div class="user-card" onclick="showPlaylist('${user.id}', ${showScore})">
+          <div class="user-header">
+            <div class="user-info">
+              <div class="user-avatar">👤</div>
+              <div class="user-details">
+                <div class="user-name">${user.firstName} ${user.lastName}</div>
+                <div class="user-age">${user.age} years old</div>
+              </div>
+            </div>
+            ${showScore ? `<div class="match-score">${user.matchScore}%</div>` : ''}
+          </div>
+          <div class="playlist-hint">tap to see ${user.firstName.toLowerCase()}'s playlist</div>
+        </div>
+      `).join('');
+    }
+    
+    // 플레이리스트 모달 열기
+    function showPlaylist(userId, isAIMatch = false) {
+      console.log('🔍 showPlaylist called with userId:', userId, 'isAIMatch:', isAIMatch);
+      
+      const userList = isAIMatch ? aiMatchUsers : allUsers;
+      console.log('📋 Searching in user list:', userList.length, 'users');
+      
+      const user = userList.find(u => u.id === userId);
+      
+      if (!user) {
+        console.error('❌ User not found:', userId);
+        return;
+      }
+      
+      selectedUser = user;
+      console.log('✅ Selected user:', selectedUser);
+      
+      const modal = document.getElementById('playlistModal');
+      const modalUserName = document.getElementById('modalUserName');
+      const modalPlaylist = document.getElementById('modalPlaylist');
+      
+      modalUserName.textContent = `${user.firstName}'s Playlist`;
+      
+      modalPlaylist.innerHTML = user.playlist.map(track => `
+        <div class="track-item-modal">
+          <div class="track-image-modal" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; font-size: 28px;">
+            ${track.emoji}
+          </div>
+          <div class="track-info-modal">
+            <div class="track-name-modal">${track.name}</div>
+            <div class="track-artist-modal">${track.artist}</div>
+          </div>
+        </div>
+      `).join('');
+      
+      modal.classList.add('active');
+    }
+    
+    // 모달에서 채팅 시작
+    function startTalkFromModal() {
+      console.log('🚀 startTalkFromModal called');
+      console.log('👤 selectedUser:', selectedUser);
+      
+      if (!selectedUser) {
+        console.error('❌ No user selected!');
+        alert('Please select a user first');
+        return;
+      }
+      
+      closeModal();
+      
+      // 세션 대기 페이지로 이동
+      saveToLocal('chat_partner_id', selectedUser.id);
+      saveToLocal('chat_partner', selectedUser);
+      
+      console.log('💾 Saved to localStorage:', {
+        chat_partner_id: selectedUser.id,
+        chat_partner: selectedUser
+      });
+      
+      navigateTo('waiting.html');
+    }
+    
+    // 모달 닫기
+    function closeModal() {
+      document.getElementById('playlistModal').classList.remove('active');
+      // selectedUser는 null로 설정하지 않음 (start talk 버튼 클릭 시 필요)
+    }
+    
+    // 모달 배경 클릭 시 닫기
+    document.getElementById('playlistModal').addEventListener('click', (e) => {
+      if (e.target.id === 'playlistModal') {
+        closeModal();
+        selectedUser = null; // 배경 클릭으로 닫을 때만 null로 설정
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waiting</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/firebase-config.js"></script>
+  <style>
+    .waiting-container {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 600px;
+    }
+    
+    .waiting-icon {
+      font-size: 100px;
+      margin-bottom: 40px;
+      animation: float 3s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+    
+    .waiting-title {
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 15px;
+    }
+    
+    .waiting-subtitle {
+      color: var(--text-secondary);
+      font-size: 16px;
+      line-height: 1.8;
+      margin-bottom: 40px;
+    }
+    
+    .partner-info {
+      background: var(--bg-card);
+      padding: 20px;
+      border-radius: 15px;
+      margin-bottom: 30px;
+      display: inline-block;
+      min-width: 200px;
+    }
+    
+    .partner-name {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+    
+    .partner-age {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    
+    .dots {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent-yellow);
+      animation: blink 1.4s infinite;
+    }
+    
+    .dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    
+    .dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    
+    @keyframes blink {
+      0%, 60%, 100% { opacity: 0.3; }
+      30% { opacity: 1; }
+    }
+    
+    .countdown {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: var(--bg-card);
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="countdown" id="countdown">10s</div>
+  
+  <div class="container waiting-container">
+    <div class="waiting-icon">⏳</div>
+    
+    <h1 class="waiting-title">waiting for connection</h1>
+    
+    <div class="partner-info">
+      <div class="partner-name" id="partnerName">Loading...</div>
+      <div class="partner-age" id="partnerAge"></div>
+    </div>
+    
+    <p class="waiting-subtitle">
+      your chat partner will join shortly<br>
+      get ready for a great conversation!
+    </p>
+    
+    <div class="dots">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+  </div>
+  
+  <script src="js/common.js"></script>
+  <script>
+    const partner = getFromLocal('chat_partner');
+    
+    // 파트너 정보 표시
+    if (partner) {
+      document.getElementById('partnerName').textContent = `${partner.firstName} ${partner.lastName}`;
+      document.getElementById('partnerAge').textContent = `${partner.age} years old`;
+    }
+    
+    // 10초 카운트다운
+    let seconds = 10;
+    const countdownEl = document.getElementById('countdown');
+    
+    const interval = setInterval(() => {
+      seconds--;
+      countdownEl.textContent = `${seconds}s`;
+      
+      if (seconds <= 0) {
+        clearInterval(interval);
+        // 옵션 선택 페이지로 이동
+        navigateTo('option-select.html');
+      }
+    }, 1000);
+  </script>
+</body>
+</html>

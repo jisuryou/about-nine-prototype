@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Nine</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/firebase-config.js"></script>
+  <style>
+    body {
+      background: linear-gradient(180deg, #4a4a4a 0%, #1a1a1a 100%);
+      cursor: pointer;
+      padding: 0;
+    }
+    
+    .splash-container {
+      width: 100%;
+      max-width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 60px 40px;
+      position: relative;
+      animation: fadeIn 1s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .brand-icon {
+      font-size: 56px;
+      margin-bottom: 40px;
+      animation: rotate 20s linear infinite;
+    }
+    
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    
+    .brand-text {
+      font-size: 48px;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.1;
+      letter-spacing: -1px;
+    }
+    
+    .brand-text .kindred {
+      color: var(--text-secondary);
+    }
+    
+    .swan-image {
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      max-width: 400px;
+      opacity: 0.7;
+      animation: float 3s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(-10px); }
+    }
+    
+    .tap-hint {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--text-secondary);
+      font-size: 12px;
+      opacity: 0.5;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 0.7; }
+    }
+  </style>
+</head>
+<body onclick="enterApp()">
+  <div class="splash-container">
+    <div>
+      <div class="brand-icon">✳️</div>
+      <div class="brand-text">
+        find your<br>
+        <span class="kindred">kindred soul</span>
+      </div>
+    </div>
+    
+    <img src="images/swans.png" alt="swans" class="swan-image" id="swanImage">
+    
+    <div class="tap-hint">tap anywhere to continue</div>
+  </div>
+  
+  <script src="js/common.js"></script>
+  <script>
+    function enterApp() {
+      // 로그인 상태 체크
+      const userId = getFromLocal('user_id');
+      
+      if (userId) {
+        // 이미 로그인되어 있으면 메인 화면으로
+        navigateTo('lounge.html');
+      } else {
+        // 로그인 안 되어 있으면 초대 코드 입력으로
+        navigateTo('invite-code.html');
+      }
+    }
+  </script>
+</body>
+</html>

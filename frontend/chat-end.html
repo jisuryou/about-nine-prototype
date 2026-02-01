@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Ended</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/firebase-config.js"></script>
+  <style>
+    body {
+      padding-top: 40px;
+      align-items: flex-start;
+    }
+    
+    .chat-container {
+      width: 100%;
+      max-width: 500px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: 100px;
+    }
+    
+    .bot-header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    
+    .bot-name {
+      font-size: 32px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .bot-avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: white;
+      margin: 0 auto 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+    }
+    
+    .chat-messages {
+      flex: 1;
+      padding: 20px;
+    }
+    
+    .message {
+      margin-bottom: 20px;
+      animation: slideUp 0.4s ease-out;
+    }
+    
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .message-bubble {
+      background: var(--bg-card);
+      padding: 16px 20px;
+      border-radius: 20px;
+      color: var(--text-primary);
+      line-height: 1.6;
+      max-width: 85%;
+      display: inline-block;
+    }
+    
+    .message-bubble.user {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin-left: auto;
+      display: block;
+      text-align: right;
+    }
+    
+    .message-bubble strong {
+      color: var(--accent-yellow);
+    }
+    
+    .score-card {
+      background: var(--bg-card);
+      border: 2px solid var(--accent-blue);
+      border-radius: 20px;
+      padding: 25px;
+      margin-top: 10px;
+      text-align: center;
+    }
+    
+    .score-text {
+      font-size: 18px;
+      color: var(--text-primary);
+      margin-bottom: 15px;
+    }
+    
+    .score-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--accent-yellow);
+      margin-bottom: 5px;
+    }
+    
+    .score-label {
+      font-size: 16px;
+      color: var(--text-secondary);
+    }
+    
+    .view-details-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--bg-darker);
+      color: var(--text-primary);
+      border: none;
+      border-radius: 20px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 15px;
+      transition: all 0.3s;
+    }
+    
+    .view-details-btn:hover {
+      background: var(--border-color);
+    }
+    
+    .waiting-dots {
+      display: inline-flex;
+      gap: 5px;
+      margin-left: 5px;
+    }
+    
+    .waiting-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      animation: blink 1.4s infinite;
+    }
+    
+    .waiting-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    
+    .waiting-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    
+    @keyframes blink {
+      0%, 60%, 100% { opacity: 0.3; }
+      30% { opacity: 1; }
+    }
+    
+    .input-area {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-dark);
+      padding: 20px;
+      border-top: 1px solid var(--border-color);
+    }
+    
+    .input-wrapper {
+      max-width: 500px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .dropdown-select {
+      flex: 1;
+      padding: 14px 18px;
+      background: var(--bg-card);
+      border: 2px solid var(--border-color);
+      border-radius: 25px;
+      color: var(--text-primary);
+      font-size: 16px;
+      appearance: none;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23b0b0b0' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 18px center;
+      padding-right: 45px;
+    }
+    
+    .send-btn {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      border: none;
+      color: white;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .send-btn:hover:not(:disabled) {
+      transform: scale(1.05);
+    }
+    
+    .send-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="bot-header">
+      <div class="bot-avatar">👤</div>
+      <div class="bot-name">COCO</div>
+    </div>
+    
+    <div class="chat-messages" id="chatMessages">
+      <!-- 메시지들이 여기에 추가됩니다 -->
+    </div>
+    
+    <div class="input-area" id="inputArea">
+      <div class="input-wrapper">
+        <select class="dropdown-select" id="decisionSelect" disabled>
+          <option value="">select an option</option>
+          <option value="go">go</option>
+          <option value="no">no</option>
+        </select>
+        <button class="send-btn" id="sendBtn" onclick="sendDecision()" disabled>
+          ▶
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="js/common.js"></script>
+  <script>
+    const chatMessages = document.getElementById('chatMessages');
+    const decisionSelect = document.getElementById('decisionSelect');
+    const sendBtn = document.getElementById('sendBtn');
+    const inputArea = document.getElementById('inputArea');
+    
+    const partner = getFromLocal('chat_partner');
+    const partnerName = partner ? partner.firstName : 'your partner';
+    
+    // 프로토타입: 랜덤 점수 생성
+    const score = Math.floor(Math.random() * 26) + 70; // 70-95
+    let scoreLabel = 'good';
+    if (score >= 85) scoreLabel = 'amazing';
+    else if (score >= 75) scoreLabel = 'great';
+    else if (score >= 65) scoreLabel = 'good';
+    else scoreLabel = 'fair';
+    
+    saveToLocal('chemistry_score', score);
+    saveToLocal('chemistry_label', scoreLabel);
+    
+    let conversationStep = 'initial'; // initial, waiting, result
+    
+    // 메시지 추가 함수
+    function addMessage(content, isUser = false) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'message';
+      
+      const bubble = document.createElement('div');
+      bubble.className = isUser ? 'message-bubble user' : 'message-bubble';
+      
+      if (typeof content === 'string') {
+        bubble.innerHTML = content;
+      } else {
+        bubble.appendChild(content);
+      }
+      
+      messageDiv.appendChild(bubble);
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    function addScoreCard() {
+      const card = document.createElement('div');
+      card.className = 'score-card';
+      card.innerHTML = `
+        <div class="score-text">chemistry score: <span class="score-value">${score}</span> <span class="score-label">(${scoreLabel})</span></div>
+        <button class="view-details-btn" onclick="viewDetails()">view details</button>
+      `;
+      
+      addMessage(card);
+      
+      // Go/No 드롭다운 활성화
+      setTimeout(() => {
+        decisionSelect.disabled = false;
+      }, 1000);
+    }
+    
+    // 초기 대화 시작
+    setTimeout(() => {
+      addMessage('yes', true);
+    }, 500);
+    
+    setTimeout(() => {
+      addMessage(`here's your chemistry score with<br><strong>${partnerName}</strong>`);
+    }, 1500);
+    
+    setTimeout(() => {
+      addScoreCard();
+    }, 3000);
+    
+    // 드롭다운 선택 시 버튼 활성화
+    decisionSelect.addEventListener('change', () => {
+      sendBtn.disabled = !decisionSelect.value;
+    });
+    
+    function viewDetails() {
+      navigateTo('chemistry-score.html');
+    }
+    
+    function sendDecision() {
+      const decision = decisionSelect.value;
+      if (!decision) return;
+      
+      conversationStep = 'waiting';
+      
+      // 입력 영역 비활성화
+      decisionSelect.disabled = true;
+      sendBtn.disabled = true;
+      
+      // 사용자 선택 표시
+      addMessage(decision, true);
+      
+      // 대기 메시지
+      setTimeout(() => {
+        addMessage(`got it!<br>waiting for ${partnerName}'s decision<span class="waiting-dots"><span class="waiting-dot"></span><span class="waiting-dot"></span><span class="waiting-dot"></span></span>`);
+      }, 500);
+      
+      // 5초 후 결과 처리
+      setTimeout(() => {
+        processMatchResult(decision);
+      }, 5000);
+    }
+    
+    function processMatchResult(myDecision) {
+      conversationStep = 'result';
+      
+      // 프로토타입: 랜덤으로 상대방 결정 (50% 확률)
+      const partnerDecision = Math.random() > 0.5 ? 'go' : 'no';
+      
+      saveToLocal('my_decision', myDecision);
+      saveToLocal('partner_decision', partnerDecision);
+      
+      // 결과 메시지
+      if (myDecision === 'go' && partnerDecision === 'go') {
+        // 둘 다 go
+        addMessage(`${partnerName} also chose "go"!<br>check out their profile 🎉`);
+        
+        setTimeout(() => {
+          navigateTo('profile-view.html');
+        }, 2000);
+        
+      } else if (myDecision === 'no') {
+        // 내가 no
+        addMessage(`you chose "no".<br>no worries! let's find someone else for you.`);
+        
+        setTimeout(() => {
+          navigateTo('lounge.html');
+        }, 2000);
+        
+      } else {
+        // 상대가 no
+        addMessage(`${partnerName} chose "no".<br>it's okay! there are more people waiting to meet you.`);
+        
+        setTimeout(() => {
+          navigateTo('lounge.html');
+        }, 2000);
+      }
+    }
+  </script>
+</body>
+</html>
