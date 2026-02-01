@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5001/api';
+const API_BASE = `${window.location.origin}/api`;
 
 // API 호출 헬퍼
 async function apiCall(endpoint, method = 'GET', data = null) {

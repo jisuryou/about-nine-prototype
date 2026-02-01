@@ -10,7 +10,12 @@ from backend.config import SECRET_KEY, CORS_ORIGINS, DEBUG
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
-CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
+CORS(
+    app,
+    supports_credentials=True,
+    origins=CORS_ORIGINS,
+    resources={r"/api/*": {"origins": CORS_ORIGINS}},
+)
 
 # =========================
 # Routes (API)
