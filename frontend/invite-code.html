@@ -75,6 +75,7 @@
         hideLoading();
         
         if (result.success) {
+            saveToLocal('invite_code', code);
           navigateTo('phone.html');
         }
       } catch (error) {

@@ -53,11 +53,12 @@
         
         // 서버에 사용자 등록
         const result = await apiCall('/register', 'POST', {
-          phone: getFromLocal('phone'),
-          firstName: firstName,
-          lastName: lastName,
-          birthdate: getFromLocal('birthdate'),
-          age: getFromLocal('age')
+            invite_code: getFromLocal('invite_code'),
+            phone: getFromLocal('phone'),
+            firstName: firstName,
+            lastName: lastName,
+            birthdate: getFromLocal('birthdate'),
+            age: getFromLocal('age')
         });
         
         hideLoading();
