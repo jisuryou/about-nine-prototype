@@ -25,15 +25,18 @@ def firebase_login():
         return err, code
 
     id_token = data.get("idToken")
+
     if not id_token:
-        return jsonify(success=False, message="idToken required"), 400
+        return jsonify(success=False, message="missing idToken"), 400
 
     try:
         decoded = fb_auth.verify_id_token(id_token)
-    except Exception:
+    except Exception as e:
+        print("🔥 token verify failed:", e)
         return jsonify(success=False, message="invalid token"), 401
 
     session["firebase_uid"] = decoded["uid"]
     session["phone_verified"] = True
 
     return jsonify(success=True)
+

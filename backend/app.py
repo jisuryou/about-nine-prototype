@@ -3,6 +3,8 @@ from flask_cors import CORS
 from pathlib import Path
 
 from backend.config import SECRET_KEY, CORS_ORIGINS, DEBUG
+from backend.services.firestore import get_firestore
+get_firestore()
 
 # =========================
 # App init
