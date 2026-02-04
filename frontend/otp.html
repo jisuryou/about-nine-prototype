@@ -39,9 +39,6 @@
     let timerSeconds = 179; // 2:59
     let timerInterval;
     
-    // 프로토타입: localStorage에서 올바른 코드 가져오기
-    const correctCode = getFromLocal('verification_code') || '123456';
-    
     // 자동 포커스 및 입력 처리
     inputs.forEach((input, index) => {
       input.addEventListener('input', (e) => {
@@ -97,61 +94,26 @@
     }
     
     async function verifyOTP() {
-      const code = Array.from(inputs).map(i => i.value).join('');
-      
-      hideError('error');
-      
-      // 프로토타입: 프론트엔드에서 직접 확인 (또는 API 호출)
-      if (code === correctCode) {
-        showLoading('verifying...');
-        
-        // API 호출 (백엔드 기록용)
+        const code = Array.from(inputs).map(i => i.value).join('');
+
         try {
-          await apiCall('/verify-sms', 'POST', { code });
-        } catch (error) {
-          // 에러 무시 (프로토타입이므로)
-          console.log('API error (ignored):', error);
+            showLoading('verifying...');
+            const idToken = await verifyFirebaseOTP(code);
+
+            await apiCall('/api/auth/firebase-login', 'POST', { idToken });
+
+            hideLoading();
+            navigateTo('birthdate.html');
+        } catch (e) {
+            hideLoading();
+            showError('error', 'invalid code');
         }
-        
-        hideLoading();
-        saveToLocal('phone_verified', true);
-        navigateTo('birthdate.html');
-      } else {
-        showError('error', 'please check the code and try again');
-        inputs.forEach(input => input.value = '');
-        inputs[0].focus();
-      }
-    }
-    
-    async function resendOTP() {
-      const phone = getFromLocal('phone');
-      
-      try {
-        showLoading('resending...');
-        const result = await apiCall('/send-sms', 'POST', { phone });
-        hideLoading();
-        
-        // 새 코드 저장
-        saveToLocal('verification_code', result.debug_code);
-        
-        timerSeconds = 179;
-        document.getElementById('timer').classList.remove('hidden');
-        document.getElementById('resendLink').classList.add('hidden');
-        startTimer();
-        
-        alert(`Code resent! (Debug: ${result.debug_code})`);
-      } catch (error) {
-        hideLoading();
-        alert('Failed to resend code');
-      }
     }
     
     // 첫 입력창에 자동 포커스
     inputs[0].focus();
     startTimer();
-    
-    // 프로토타입: 개발 편의를 위해 올바른 코드 콘솔에 출력
-    console.log('🔑 Correct code:', correctCode);
+
   </script>
 </body>
 </html>

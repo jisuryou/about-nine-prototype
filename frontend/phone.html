@@ -1,81 +1,141 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>휴대폰 번호 입력</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css" />
   <script type="module" src="js/firebase-config.js"></script>
+
+  <style>
+    .phone-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .country-select {
+      width: 110px;
+      padding: 12px;
+      font-size: 14px;
+    }
+
+    .phone-input {
+      flex: 1;
+    }
+  </style>
 </head>
+
 <body>
   <div class="container">
     <div>
-      <h1>tell us your<br>phone number</h1>
-      
-      <input 
-        type="tel" 
-        id="phone" 
-        placeholder="+1 0-000-0000"
-        maxlength="15"
-        autocomplete="tel"
-      >
-      
+      <h1>tell us your<br />phone number</h1>
+
+      <!-- 국가 + 번호 입력 -->
+      <div class="phone-row">
+        <select id="country" class="country-select">
+          <option value="+1" selected>🇺🇸 +1</option>
+          <option value="+82">🇰🇷 +82</option>
+          <option value="+81">🇯🇵 +81</option>
+          <option value="+86">🇨🇳 +86</option>
+          <option value="+44">🇬🇧 +44</option>
+        </select>
+
+        <input
+          type="tel"
+          id="phone"
+          class="phone-input"
+          placeholder="10-1234-5678"
+          autocomplete="tel"
+        />
+      </div>
+
       <span id="error" class="error hidden"></span>
-      
+
       <div class="terms-text">
-        by signing up, you are agreeing to our 
-        <a href="#" target="_blank">terms of service</a> and 
-        <a href="#" target="_blank">privacy policy</a>
+        by signing up, you are agreeing to our
+        <a href="#">terms of service</a> and
+        <a href="#">privacy policy</a>
       </div>
     </div>
-    
+
     <button onclick="sendOTP()">next</button>
   </div>
-  
+
+  <!-- Firebase invisible recaptcha -->
+  <div id="recaptcha-container"></div>
+
   <script src="js/common.js"></script>
+
   <script>
     const phoneInput = document.getElementById('phone');
-    
-    // 전화번호 포맷팅
-    phoneInput.addEventListener('input', (e) => {
-      let value = e.target.value.replace(/[^0-9+]/g, '');
-      
-      // +1로 시작하도록
-      if (!value.startsWith('+1')) {
-        value = '+1 ' + value.replace(/^\+?1?\s?/, '');
-      }
-      
-      e.target.value = value;
+    const countrySelect = document.getElementById('country');
+
+    // =========================================
+    // Recaptcha 최초 1회만 초기화 (중요)
+    // =========================================
+    document.addEventListener('DOMContentLoaded', () => {
+      initRecaptcha();
     });
-    
+
+
+    // =========================================
+    // 숫자만 입력
+    // =========================================
+    phoneInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/[^0-9]/g, '');
+    });
+
+
+    // =========================================
+    // E.164 형식 생성
+    // =========================================
+    function buildE164() {
+      const country = countrySelect.value;
+      let number = phoneInput.value.replace(/[^0-9]/g, '');
+
+      if (!number) return null;
+
+      // 한국/일본 등 앞 0 제거
+      if (number.startsWith('0')) {
+        number = number.slice(1);
+      }
+
+      return country + number;
+    }
+
+
+    // =========================================
+    // OTP 전송 (Firebase)
+    // =========================================
     async function sendOTP() {
-      const phone = phoneInput.value.replace(/[^0-9]/g, '');
-      
       hideError('error');
-      
-      // 최소 10자리 (미국 번호)
-      if (phone.length < 11) {
-        showError('error', 'a valid number is required to continue');
+
+      const phone = buildE164();
+
+      if (!phone || phone.length < 10) {
+        showError('error', 'enter a valid phone number');
         return;
       }
-      
+
       try {
         showLoading('sending code...');
-        const result = await apiCall('/send-sms', 'POST', { phone });
+
+        await sendFirebaseOTP(phone);
+
+        saveToLocal('phone', phone);
+
         hideLoading();
-        
-        if (result.success) {
-          // 전화번호와 인증코드를 localStorage에 저장
-          saveToLocal('phone', phone);
-          saveToLocal('verification_code', result.debug_code); // 프로토타입용
-          navigateTo('otp.html');
-        }
-      } catch (error) {
+        navigateTo('otp.html');
+
+      } catch (e) {
+        console.error(e);
         hideLoading();
         showError('error', 'failed to send verification code');
       }
     }
-    
+
+
+    // Enter 키
     phoneInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendOTP();
     });

@@ -10,11 +10,12 @@ from backend.config import SECRET_KEY, CORS_ORIGINS, DEBUG
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
-CORS(
-    app,
-    supports_credentials=True,
-    origins=CORS_ORIGINS,
-    resources={r"/api/*": {"origins": CORS_ORIGINS}},
+CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
+
+
+app.config.update(
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True,
 )
 
 # =========================
@@ -35,7 +36,16 @@ app.register_blueprint(onboarding_bp)
 app.register_blueprint(presence_bp)
 
 if DEBUG:
-    app.register_blueprint(debug_bp)
+    app.config.update(
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=False,
+    )
+else:
+    app.config.update(
+        SESSION_COOKIE_SAMESITE="None",
+        SESSION_COOKIE_SECURE=True,
+    )
+
 
 # =========================
 # Health check
