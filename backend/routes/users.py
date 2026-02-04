@@ -32,3 +32,24 @@ def register():
         )
 
     return jsonify(success=True, user_id=user_id)
+
+@users_bp.route("/playlist", methods=["POST"])
+def save_playlist():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    data, err, code = get_json()
+    if err:
+        return err, code
+
+    tracks = data.get("tracks", [])
+
+    db = get_firestore()
+
+    db.collection("users").document(user_id).update({
+        "playlist": tracks,
+        "playlist_updated_at": datetime.utcnow().isoformat()
+    })
+
+    return jsonify(success=True)

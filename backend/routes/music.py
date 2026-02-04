@@ -1,18 +1,37 @@
+import requests
 from flask import Blueprint, jsonify, request
+import os
 
 music_bp = Blueprint("music", __name__, url_prefix="/api/music")
 
+YOUTUBE_KEY = os.getenv("YOUTUBE_API_KEY")
 
 @music_bp.route("/search")
-def search_music():
-    q = request.args.get("q", "")
+def search():
+    q = request.args.get("q")
+    if not q:
+        return jsonify(success=True, tracks=[])
 
-    # prototype mock
-    tracks = [
-        {"id": "1", "name": "Blinding Lights", "artist": "The Weeknd"},
-        {"id": "2", "name": "Levitating", "artist": "Dua Lipa"},
-        {"id": "3", "name": "As It Was", "artist": "Harry Styles"},
-    ]
+    r = requests.get(
+        "https://www.googleapis.com/youtube/v3/search",
+        params={
+            "part": "snippet",
+            "q": q + " official audio",  # ⭐ 정확도 ↑
+            "type": "video",
+            "maxResults": 25,
+            "key": YOUTUBE_KEY,
+        },
+    )
 
-    filtered = [t for t in tracks if q.lower() in t["name"].lower()]
-    return jsonify(success=True, tracks=filtered)
+    items = r.json().get("items", [])
+
+    tracks = [{
+        "id": it["id"]["videoId"],
+        "name": it["snippet"]["title"],
+        "artist": it["snippet"]["channelTitle"],
+        "image": it["snippet"]["thumbnails"]["high"]["url"],
+        "preview": f"https://www.youtube.com/watch?v={it['id']['videoId']}"
+    } for it in items]
+
+    return jsonify(success=True, tracks=tracks)
+

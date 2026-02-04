@@ -4,6 +4,7 @@ from pathlib import Path
 
 from backend.config import SECRET_KEY, CORS_ORIGINS, DEBUG
 from backend.services.firestore import get_firestore
+
 get_firestore()
 
 # =========================
@@ -12,16 +13,23 @@ get_firestore()
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+
 CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
 
+if DEBUG:
+    app.config.update(
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=False,
+    )
+else:
+    app.config.update(
+        SESSION_COOKIE_SAMESITE="None",
+        SESSION_COOKIE_SECURE=True,
+    )
 
-app.config.update(
-    SESSION_COOKIE_SAMESITE="None",
-    SESSION_COOKIE_SECURE=True,
-)
 
 # =========================
-# Routes (API)
+# API Routes
 # =========================
 
 from backend.routes.auth import auth_bp
@@ -38,58 +46,40 @@ app.register_blueprint(onboarding_bp)
 app.register_blueprint(presence_bp)
 
 if DEBUG:
-    app.config.update(
-        SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=False,
-    )
-else:
-    app.config.update(
-        SESSION_COOKIE_SAMESITE="None",
-        SESSION_COOKIE_SECURE=True,
-    )
+    app.register_blueprint(debug_bp)
 
 
 # =========================
-# Health check
+# Health
 # =========================
 
 @app.route("/api/health")
 def health():
-    return jsonify(
-        status="ok",
-        env="development" if DEBUG else "production"
-    )
+    return jsonify(status="ok")
+
 
 # =========================
-# Frontend serving (SPA)
+# ⭐⭐⭐ 핵심 수정 부분
 # =========================
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 
-@app.route("/", defaults={"path": "index.html"})
-@app.route("/<path:path>")
-def serve_frontend(path):
-    file_path = FRONTEND_DIR / path
 
-    # 정적 파일 존재하면 그대로 서빙
-    if file_path.exists() and file_path.is_file():
-        return send_from_directory(FRONTEND_DIR, path)
+# 1️⃣ 정적 파일만 서빙
+@app.route("/<path:filename>")
+def static_files(filename):
+    file_path = FRONTEND_DIR / filename
 
-    # SPA fallback (react / vanilla 모두 대응)
-    return send_from_directory(FRONTEND_DIR, "index.html")
+    if file_path.exists():
+        return send_from_directory(FRONTEND_DIR, filename)
 
-# =========================
-# Error handlers
-# =========================
-
-@app.errorhandler(404)
-def not_found(e):
     return jsonify(success=False, message="Not found"), 404
 
 
-@app.errorhandler(500)
-def internal_error(e):
-    return jsonify(success=False, message="Internal server error"), 500
+# 2️⃣ 루트만 index
+@app.route("/")
+def index():
+    return send_from_directory(FRONTEND_DIR, "index.html")
 
 
 # =========================
@@ -97,11 +87,4 @@ def internal_error(e):
 # =========================
 
 if __name__ == "__main__":
-    print("🚀 About Nine API Server")
-    print(f"📍 http://127.0.0.1:5001")
-    print(f"🔧 DEBUG = {DEBUG}")
-    app.run(
-        host="0.0.0.0",
-        port=5001,
-        debug=DEBUG
-    )
+    app.run(host="0.0.0.0", port=5001, debug=DEBUG)

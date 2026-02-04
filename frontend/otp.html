@@ -97,18 +97,25 @@
         const code = Array.from(inputs).map(i => i.value).join('');
 
         try {
-            showLoading('verifying...');
+            console.log("STEP1: verifying firebase");
             const idToken = await verifyFirebaseOTP(code);
 
-            await apiCall('/api/auth/firebase-login', 'POST', { idToken });
+            console.log("STEP2: idToken:", idToken);
 
-            hideLoading();
+            console.log("STEP3: calling backend");
+
+            await apiCall('/auth/firebase-login', 'POST', { idToken });
+
+            console.log("STEP4: success");
+
             navigateTo('birthdate.html');
+
         } catch (e) {
-            hideLoading();
+            console.error("OTP FAIL:", e);
             showError('error', 'invalid code');
         }
     }
+
     
     // 첫 입력창에 자동 포커스
     inputs[0].focus();

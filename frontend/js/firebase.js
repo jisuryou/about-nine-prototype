@@ -40,10 +40,21 @@ window.sendFirebaseOTP = async (phone) => {
     phone,
     window.recaptchaVerifier
   );
-  window.confirmationResult = confirmation;
+
+  // verificationId만 저장
+  localStorage.setItem("verificationId", confirmation.verificationId);
 };
 
+
+import { PhoneAuthProvider, signInWithCredential }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
 window.verifyFirebaseOTP = async (code) => {
-  const result = await window.confirmationResult.confirm(code);
+  const verificationId = localStorage.getItem("verificationId");
+
+  const credential = PhoneAuthProvider.credential(verificationId, code);
+
+  const result = await signInWithCredential(auth, credential);
+
   return await result.user.getIdToken();
 };

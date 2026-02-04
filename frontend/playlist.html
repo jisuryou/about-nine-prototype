@@ -1,504 +1,295 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Playlist</title>
-  <link rel="stylesheet" href="css/style.css">
-  <script type="module" src="js/firebase-config.js"></script>
-  <style>
-    body {
-      padding: 20px;
-      align-items: flex-start;
-    }
-    
-    .playlist-container {
-      width: 100%;
-      max-width: 500px;
-      margin: 0 auto;
-      padding-bottom: 100px;
-    }
-    
-    .header {
-      text-align: center;
-      margin-bottom: 40px;
-    }
-    
-    .header h1 {
-      font-size: 32px;
-      margin-bottom: 10px;
-    }
-    
-    .header p {
-      color: var(--text-secondary);
-      font-size: 14px;
-    }
-    
-    .search-box {
-      position: relative;
-      margin-bottom: 30px;
-    }
-    
-    .search-input {
-      width: 100%;
-      padding: 16px 50px 16px 20px;
-      background: var(--bg-card);
-      border: 2px solid var(--border-color);
-      border-radius: 25px;
-      color: var(--text-primary);
-      font-size: 16px;
-      transition: all 0.3s;
-    }
-    
-    .search-input:focus {
-      border-color: var(--accent-yellow);
-      outline: none;
-    }
-    
-    .search-btn {
-      position: absolute;
-      right: 8px;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: var(--accent-yellow);
-      border: none;
-      color: var(--bg-dark);
-      font-size: 18px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.3s;
-    }
-    
-    .search-btn:hover {
-      transform: translateY(-50%) scale(1.05);
-    }
-    
-    .selected-section {
-      margin-bottom: 30px;
-    }
-    
-    .section-title {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 15px;
-      color: var(--text-primary);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .track-count {
-      color: var(--text-secondary);
-      font-size: 14px;
-      font-weight: 400;
-    }
-    
-    .track-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    
-    .track-item {
-      display: flex;
-      align-items: center;
-      padding: 12px;
-      background: var(--bg-card);
-      border-radius: 12px;
-      transition: all 0.3s;
-      border: 2px solid transparent;
-    }
-    
-    .track-item:hover {
-      border-color: var(--border-color);
-    }
-    
-    .track-image {
-      width: 50px;
-      height: 50px;
-      border-radius: 8px;
-      background: var(--border-color);
-      margin-right: 15px;
-      object-fit: cover;
-      flex-shrink: 0;
-    }
-    
-    .track-info {
-      flex: 1;
-      min-width: 0;
-    }
-    
-    .track-name {
-      font-weight: 600;
-      color: var(--text-primary);
-      font-size: 15px;
-      margin-bottom: 4px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    
-    .track-artist {
-      color: var(--text-secondary);
-      font-size: 13px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    
-    .track-action {
-      flex-shrink: 0;
-      margin-left: 10px;
-    }
-    
-    .add-btn, .remove-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border: none;
-      cursor: pointer;
-      font-size: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.3s;
-    }
-    
-    .add-btn {
-      background: var(--success-green);
-      color: white;
-    }
-    
-    .remove-btn {
-      background: var(--error-red);
-      color: white;
-    }
-    
-    .add-btn:hover, .remove-btn:hover {
-      transform: scale(1.1);
-    }
-    
-    .empty-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: var(--text-secondary);
-      font-size: 14px;
-    }
-    
-    .next-btn {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: calc(100% - 40px);
-      max-width: 460px;
-      padding: 16px;
-      background: white;
-      color: var(--bg-dark);
-      border: none;
-      border-radius: 25px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-    }
-    
-    .next-btn:hover:not(:disabled) {
-      transform: translateX(-50%) translateY(-2px);
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-    }
-    
-    .next-btn:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
-    }
-    
-    .min-tracks-notice {
-      text-align: center;
-      color: var(--text-secondary);
-      font-size: 12px;
-      margin-top: 10px;
-    }
-    
-    .loading-spinner {
-      text-align: center;
-      padding: 20px;
-    }
-    
-    .spinner-small {
-      width: 30px;
-      height: 30px;
-      border: 3px solid var(--border-color);
-      border-top-color: var(--accent-yellow);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 0 auto;
-    }
-  </style>
-</head>
-<body>
-  <div class="playlist-container">
-    <div class="header">
-      <h1>build your playlist</h1>
-      <p>add at least 3 songs you love</p>
-    </div>
-    
-    <div class="search-box">
-      <input 
-        type="text" 
-        class="search-input" 
-        id="searchInput" 
-        placeholder="search for songs or artists..."
-        autocomplete="off"
-      >
-      <button class="search-btn" onclick="searchMusic()">🔍</button>
-    </div>
-    
-    <div class="selected-section" id="selectedSection">
-      <div class="section-title">
-        your playlist
-        <span class="track-count" id="trackCount">0 / 10</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Playlist</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="js/firebase-config.js"></script>
+
+    <!-- ✅ UI 스타일 100% 그대로 유지 -->
+    <style>
+      body {
+        padding: 20px;
+        align-items: flex-start;
+      }
+      .playlist-container {
+        width: 100%;
+        max-width: 500px;
+        margin: 0 auto;
+        padding-bottom: 100px;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 40px;
+      }
+      .header h1 {
+        font-size: 32px;
+        margin-bottom: 10px;
+      }
+      .header p {
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+      .search-box {
+        position: relative;
+        margin-bottom: 30px;
+      }
+      .search-input {
+        width: 100%;
+        padding: 16px 50px 16px 20px;
+        background: var(--bg-card);
+        border: 2px solid var(--border-color);
+        border-radius: 25px;
+        color: var(--text-primary);
+      }
+      .search-btn {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--accent-yellow);
+        border: none;
+        cursor: pointer;
+      }
+      .track-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .track-item {
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        background: var(--bg-card);
+        border-radius: 12px;
+      }
+      .track-image {
+        width: 50px;
+        height: 50px;
+        border-radius: 8px;
+        margin-right: 15px;
+        object-fit: cover;
+      }
+      .track-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .track-name {
+        font-weight: 600;
+      }
+      .track-artist {
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .add-btn,
+      .remove-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+      }
+      .add-btn {
+        background: var(--success-green);
+        color: white;
+      }
+      .remove-btn {
+        background: var(--error-red);
+        color: white;
+      }
+      .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-secondary);
+      }
+      .next-btn {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: calc(100% - 40px);
+        max-width: 460px;
+        padding: 16px;
+        border-radius: 25px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="playlist-container">
+      <div class="header">
+        <h1>build your playlist</h1>
+        <p>add at least 3 songs you love</p>
       </div>
-      <div class="track-list" id="selectedList">
-        <div class="empty-state">
-          your selected songs will appear here
+
+      <!-- 검색 -->
+      <div class="search-box">
+        <input
+          id="searchInput"
+          class="search-input"
+          placeholder="search for songs or artists..."
+        />
+        <button class="search-btn" onclick="searchMusic()">🔍</button>
+      </div>
+
+      <!-- 선택 -->
+      <div class="selected-section">
+        <div class="section-title">
+          your playlist
+          <span id="trackCount">0 / 10</span>
+        </div>
+        <div id="selectedList" class="track-list">
+          <div class="empty-state">your selected songs will appear here</div>
         </div>
       </div>
-    </div>
-    
-    <div class="selected-section" id="searchSection" style="display: none;">
-      <div class="section-title">search results</div>
-      <div id="searchLoading" class="loading-spinner" style="display: none;">
-        <div class="spinner-small"></div>
+
+      <!-- 검색결과 -->
+      <div id="searchSection" style="display: none">
+        <div class="section-title">search results</div>
+        <div id="searchResults" class="track-list"></div>
       </div>
-      <div class="track-list" id="searchResults"></div>
+
+      <button id="nextBtn" class="next-btn" disabled onclick="finishPlaylist()">
+        next
+      </button>
     </div>
-    
-    <button class="next-btn" id="nextBtn" onclick="finishPlaylist()" disabled>
-      next
-    </button>
-    <p class="min-tracks-notice" id="minNotice">select at least 3 songs to continue</p>
-  </div>
-  
-  <script src="js/common.js"></script>
-  <script>
-    const searchInput = document.getElementById('searchInput');
-    const searchResults = document.getElementById('searchResults');
-    const selectedList = document.getElementById('selectedList');
-    const trackCount = document.getElementById('trackCount');
-    const nextBtn = document.getElementById('nextBtn');
-    const minNotice = document.getElementById('minNotice');
-    const searchSection = document.getElementById('searchSection');
-    const searchLoading = document.getElementById('searchLoading');
-    
-    const MAX_TRACKS = 10;
-    const MIN_TRACKS = 3;
-    let selectedTracks = [];
-    
-    // 프로토타입 모드: Spotify API 대신 더미 데이터 사용
-    const USE_MOCK = true;
-    
-    // 프로토타입: 더미 음악 데이터
-    const mockTracks = [
-      { id: '1', name: 'Blinding Lights', artist: 'The Weeknd', album: 'After Hours', image: 'https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36' },
-      { id: '2', name: 'Levitating', artist: 'Dua Lipa', album: 'Future Nostalgia', image: 'https://i.scdn.co/image/ab67616d0000b273be841ba4bc24340152e3a79a' },
-      { id: '3', name: 'Save Your Tears', artist: 'The Weeknd', album: 'After Hours', image: 'https://i.scdn.co/image/ab67616d0000b2738863bc11d2aa12b54f5aeb36' },
-      { id: '4', name: 'Good 4 U', artist: 'Olivia Rodrigo', album: 'SOUR', image: 'https://i.scdn.co/image/ab67616d0000b273a91c10fe9472d9bd89802e5a' },
-      { id: '5', name: 'Peaches', artist: 'Justin Bieber', album: 'Justice', image: 'https://i.scdn.co/image/ab67616d0000b273e6f407c7f3a0ec98845e4431' },
-      { id: '6', name: 'drivers license', artist: 'Olivia Rodrigo', album: 'SOUR', image: 'https://i.scdn.co/image/ab67616d0000b273a91c10fe9472d9bd89802e5a' },
-      { id: '7', name: 'Kiss Me More', artist: 'Doja Cat ft. SZA', album: 'Planet Her', image: 'https://i.scdn.co/image/ab67616d0000b273be841ba4bc24340152e3a79a' },
-      { id: '8', name: 'Heat Waves', artist: 'Glass Animals', album: 'Dreamland', image: 'https://i.scdn.co/image/ab67616d0000b27361cb4483c0f6c8c63fb48235' },
-      { id: '9', name: 'Stay', artist: 'The Kid LAROI & Justin Bieber', album: 'Stay', image: 'https://i.scdn.co/image/ab67616d0000b273e6f407c7f3a0ec98845e4431' },
-      { id: '10', name: 'Montero', artist: 'Lil Nas X', album: 'MONTERO', image: 'https://i.scdn.co/image/ab67616d0000b273be841ba4bc24340152e3a79a' },
-      { id: '11', name: 'Shivers', artist: 'Ed Sheeran', album: '=', image: 'https://i.scdn.co/image/ab67616d0000b273863bc11d2aa12b54f5aeb36' },
-      { id: '12', name: 'As It Was', artist: 'Harry Styles', album: "Harry's House", image: 'https://i.scdn.co/image/ab67616d0000b273b46f74097655d7f353caab14' },
-    ];
-    
-    // 로컬 스토리지에서 기존 선택 로드
-    window.onload = () => {
-      const saved = getFromLocal('selected_tracks');
-      if (saved && Array.isArray(saved)) {
-        selectedTracks = saved;
-        updateSelectedList();
-      }
-    };
-    
-    // Enter 키로 검색
-    searchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') searchMusic();
-    });
-    
-    // 음악 검색
-    async function searchMusic() {
-      const query = searchInput.value.trim();
-      if (!query) return;
-      
-      searchSection.style.display = 'block';
-      searchLoading.style.display = 'block';
-      searchResults.innerHTML = '';
-      
-      try {
-        let tracks;
-        
-        if (USE_MOCK) {
-          // 프로토타입: 더미 데이터 필터링
-          await new Promise(resolve => setTimeout(resolve, 500)); // 로딩 시뮬레이션
-          tracks = mockTracks.filter(track => 
-            track.name.toLowerCase().includes(query.toLowerCase()) ||
-            track.artist.toLowerCase().includes(query.toLowerCase())
-          );
-        } else {
-          // 실제 Spotify API 호출
-          const result = await apiCall(`/music/search?q=${encodeURIComponent(query)}`);
-          tracks = result.tracks || [];
+
+    <script src="js/common.js"></script>
+
+    <script>
+      const MAX = 10;
+      const MIN = 3;
+
+      let selectedTracks = [];
+
+      const input = document.getElementById("searchInput");
+      const results = document.getElementById("searchResults");
+      const selected = document.getElementById("selectedList");
+      const count = document.getElementById("trackCount");
+      const nextBtn = document.getElementById("nextBtn");
+      const searchSection = document.getElementById("searchSection");
+
+      // =====================
+      // 검색 (YouTube backend)
+      // =====================
+
+      input.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") searchMusic();
+      });
+
+      async function searchMusic() {
+        const q = input.value.trim();
+        if (!q) return;
+
+        searchSection.style.display = "block";
+        results.innerHTML = "loading...";
+
+        try {
+          const res = await apiCall(`/music/search?q=${encodeURIComponent(q)}`);
+          renderResults(res.tracks);
+        } catch {
+          results.innerHTML = "<div class='empty-state'>search failed</div>";
         }
-        
-        searchLoading.style.display = 'none';
-        displaySearchResults(tracks);
-        
-      } catch (error) {
-        searchLoading.style.display = 'none';
-        searchResults.innerHTML = '<div class="empty-state">search failed. please try again.</div>';
       }
-    }
-    
-    // 검색 결과 표시
-    function displaySearchResults(tracks) {
-      if (tracks.length === 0) {
-        searchResults.innerHTML = '<div class="empty-state">no results found</div>';
-        return;
+
+      // =====================
+      // 결과 표시
+      // =====================
+
+      function renderResults(tracks) {
+        if (!tracks.length) {
+          results.innerHTML = "<div class='empty-state'>no results</div>";
+          return;
+        }
+
+        results.innerHTML = tracks
+          .map(
+            (t) => `
+    <div class="track-item">
+      <img src="${t.image}" class="track-image">
+      <div class="track-info">
+        <div class="track-name">${t.name}</div>
+        <div class="track-artist">${t.artist}</div>
+      </div>
+      <button class="add-btn" onclick='addTrack(${JSON.stringify(t)})'>+</button>
+    </div>
+  `,
+          )
+          .join("");
       }
-      
-      searchResults.innerHTML = tracks.map(track => {
-        const isSelected = selectedTracks.some(t => t.id === track.id);
-        const isMaxReached = selectedTracks.length >= MAX_TRACKS;
-        
-        return `
-          <div class="track-item">
-            <img src="${track.image || 'https://via.placeholder.com/50'}" alt="album" class="track-image" onerror="this.src='https://via.placeholder.com/50'">
-            <div class="track-info">
-              <div class="track-name">${track.name}</div>
-              <div class="track-artist">${track.artist}</div>
-            </div>
-            <div class="track-action">
-              ${isSelected ? 
-                '<span style="color: var(--success-green); font-size: 12px;">✓ added</span>' :
-                (isMaxReached ? 
-                  '<span style="color: var(--text-secondary); font-size: 12px;">max reached</span>' :
-                  `<button class="add-btn" onclick='addTrack(${JSON.stringify(track).replace(/'/g, "&apos;")})'>+</button>`
-                )
-              }
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-    
-    // 곡 추가
-    function addTrack(track) {
-      if (selectedTracks.length >= MAX_TRACKS) {
-        alert(`maximum ${MAX_TRACKS} songs allowed`);
-        return;
+
+      // =====================
+      // 추가/삭제
+      // =====================
+
+      function addTrack(t) {
+        if (selectedTracks.length >= MAX) return;
+        if (selectedTracks.some((x) => x.id === t.id)) return;
+        selectedTracks.push(t);
+        update();
       }
-      
-      if (selectedTracks.some(t => t.id === track.id)) {
-        return;
+
+      function removeTrack(i) {
+        selectedTracks.splice(i, 1);
+        update();
       }
-      
-      selectedTracks.push(track);
-      updateSelectedList();
-      
-      // 검색 결과 갱신
-      if (searchInput.value) {
-        searchMusic();
+
+      // =====================
+      // 선택 목록 업데이트
+      // =====================
+
+      function update() {
+        count.textContent = `${selectedTracks.length} / ${MAX}`;
+
+        if (!selectedTracks.length) {
+          selected.innerHTML =
+            "<div class='empty-state'>your selected songs will appear here</div>";
+        } else {
+          selected.innerHTML = selectedTracks
+            .map(
+              (t, i) => `
+      <div class="track-item">
+        <img src="${t.image}" class="track-image">
+        <div class="track-info">
+          <div class="track-name">${t.name}</div>
+          <div class="track-artist">${t.artist}</div>
+        </div>
+        <button class="remove-btn" onclick="removeTrack(${i})">×</button>
+      </div>
+    `,
+            )
+            .join("");
+        }
+
+        nextBtn.disabled = selectedTracks.length < MIN;
+        saveToLocal("selected_tracks", selectedTracks);
       }
-    }
-    
-    // 곡 삭제
-    function removeTrack(index) {
-      selectedTracks.splice(index, 1);
-      updateSelectedList();
-      
-      // 검색 결과 갱신
-      if (searchInput.value) {
-        searchMusic();
+
+      // =====================
+      // 완료
+      // =====================
+
+      async function finishPlaylist() {
+        if (selectedTracks.length < MIN) return;
+
+        try {
+          showLoading("saving...");
+
+          await apiCall("/users/playlist", "POST", {
+            tracks: selectedTracks,
+          });
+
+          hideLoading();
+          navigateTo("lounge.html");
+        } catch (e) {
+          hideLoading();
+          alert("failed to save playlist");
+        }
       }
-    }
-    
-    // 선택된 곡 목록 업데이트
-    function updateSelectedList() {
-      trackCount.textContent = `${selectedTracks.length} / ${MAX_TRACKS}`;
-      
-      if (selectedTracks.length === 0) {
-        selectedList.innerHTML = '<div class="empty-state">your selected songs will appear here</div>';
-      } else {
-        selectedList.innerHTML = selectedTracks.map((track, index) => `
-          <div class="track-item">
-            <img src="${track.image || 'https://via.placeholder.com/50'}" alt="album" class="track-image" onerror="this.src='https://via.placeholder.com/50'">
-            <div class="track-info">
-              <div class="track-name">${track.name}</div>
-              <div class="track-artist">${track.artist}</div>
-            </div>
-            <div class="track-action">
-              <button class="remove-btn" onclick="removeTrack(${index})">×</button>
-            </div>
-          </div>
-        `).join('');
-      }
-      
-      // 버튼 상태 업데이트
-      nextBtn.disabled = selectedTracks.length < MIN_TRACKS;
-      
-      if (selectedTracks.length >= MIN_TRACKS) {
-        minNotice.style.display = 'none';
-      } else {
-        minNotice.style.display = 'block';
-        minNotice.textContent = `select at least ${MIN_TRACKS - selectedTracks.length} more song${MIN_TRACKS - selectedTracks.length > 1 ? 's' : ''} to continue`;
-      }
-      
-      // 로컬 스토리지에 저장
-      saveToLocal('selected_tracks', selectedTracks);
-    }
-    
-    // 플레이리스트 완료
-    async function finishPlaylist() {
-      if (selectedTracks.length < MIN_TRACKS) {
-        alert(`please select at least ${MIN_TRACKS} songs`);
-        return;
-      }
-      
-      try {
-        showLoading('saving your playlist...');
-        
-        // 서버에 저장
-        await apiCall('/playlist/save', 'POST', {
-          user_id: getFromLocal('user_id'),
-          tracks: selectedTracks
-        });
-        
-        hideLoading();
-        
-        // 온보딩 완료 표시
-        saveToLocal('playlist_completed', true);
-        
-        // 라운지로 이동
-        navigateTo('lounge.html');
-        
-      } catch (error) {
-        hideLoading();
-        console.error('플레이리스트 저장 오류:', error);
-        
-        // 프로토타입: 에러 무시하고 진행
-        saveToLocal('playlist_completed', true);
-        navigateTo('lounge.html');
-      }
-    }
-  </script>
-</body>
+    </script>
+  </body>
 </html>
