@@ -1,38 +1,92 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+/* =========================
+   Firebase Core
+========================= */
+
+import { initializeApp } 
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+
+/* =========================
+   Auth
+========================= */
+
 import {
   getAuth,
   RecaptchaVerifier,
-  signInWithPhoneNumber
+  signInWithPhoneNumber,
+  PhoneAuthProvider,
+  signInWithCredential
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+/* =========================
+   Realtime DB
+========================= */
+
+import {
+  getDatabase,
+  ref,
+  set,
+  onDisconnect,
+  onValue
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+/* =========================
+   Firestore (separate sdk)
+========================= */
+
+import { getFirestore }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+
+/* =========================
+   Config
+========================= */
 
 const firebaseConfig = {
   apiKey: "AIzaSyDC0zepbZP9uOd8uHPLMr3-1nKjaelwtu4",
   authDomain: "about-nine-prototype-46a2c.firebaseapp.com",
-  databaseURL: "https://about-nine-prototype-46a2c-default-rtdb.asia-southeast1.firebasedatabase.app",
+  databaseURL:
+    "https://about-nine-prototype-46a2c-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "about-nine-prototype-46a2c",
   storageBucket: "about-nine-prototype-46a2c.firebasestorage.app",
   messagingSenderId: "746184089802",
   appId: "1:746184089802:web:741d74b2cb1f5fe4231433"
 };
 
+
+/* =========================
+   Initialize (ONLY ONCE)
+========================= */
+
 const app = initializeApp(firebaseConfig);
+
+
+/* =========================
+   Export Instances
+========================= */
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const rtdb = getDatabase(app);
+
+export { ref, set, onDisconnect, onValue };
 
 
-// ==========================
-// ⭐⭐⭐ 핵심 수정 부분
-// ==========================
+/* =====================================================
+   Phone Auth Helpers
+===================================================== */
+
+/* ---------- Recaptcha ---------- */
 
 window.initRecaptcha = () => {
   window.recaptchaVerifier = new RecaptchaVerifier(
-    auth,                    // ⭐ auth FIRST
-    "recaptcha-container",   // ⭐ container SECOND
-    { size: "invisible" }    // ⭐ options THIRD
+    auth,
+    "recaptcha-container",
+    { size: "invisible" }
   );
 };
+
+
+/* ---------- Send OTP ---------- */
 
 window.sendFirebaseOTP = async (phone) => {
   const confirmation = await signInWithPhoneNumber(
@@ -41,20 +95,20 @@ window.sendFirebaseOTP = async (phone) => {
     window.recaptchaVerifier
   );
 
-  // verificationId만 저장
   localStorage.setItem("verificationId", confirmation.verificationId);
 };
 
 
-import { PhoneAuthProvider, signInWithCredential }
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+/* ---------- Verify OTP ---------- */
 
 window.verifyFirebaseOTP = async (code) => {
   const verificationId = localStorage.getItem("verificationId");
 
-  const credential = PhoneAuthProvider.credential(verificationId, code);
+  const credential =
+    PhoneAuthProvider.credential(verificationId, code);
 
-  const result = await signInWithCredential(auth, credential);
+  const result =
+    await signInWithCredential(auth, credential);
 
   return await result.user.getIdToken();
 };

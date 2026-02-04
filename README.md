@@ -35,7 +35,7 @@ python backend/app.py
 - 전화번호 인증
 - 생년월일/이름 입력
 - 온보딩 (챗봇)
-- 음악 선택 (Deezer)
+- 음악 선택 (Youtube)
 - 라운지 & AI 매칭
 - 음성 대화
 - 프로필

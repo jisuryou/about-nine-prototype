@@ -8,19 +8,20 @@ _rtdb = None
 def get_rtdb():
     global _rtdb
 
-    # RTDB 안 쓰는 환경 (dev / test)
     if not FIREBASE_DB_URL:
         return None
 
     if _rtdb:
         return _rtdb
 
-    # Firebase app이 이미 초기화돼 있어야 함
-    if not firebase_admin._apps:
+    try:
+        firebase_admin.get_app()
+    except ValueError:
         raise RuntimeError(
-            "Firebase app not initialized. "
-            "Initialize Firestore first."
+            "Firebase app not initialized. Initialize Firestore first."
         )
+
+    print("✅ RTDB connected:", FIREBASE_DB_URL)
 
     _rtdb = db.reference("/", url=FIREBASE_DB_URL)
     return _rtdb

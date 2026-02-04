@@ -19,13 +19,13 @@ def get_firestore():
 
     cred = None
 
-    # 1️⃣ JSON env 방식 (권장)
+    # 1️⃣ JSON env (권장)
     if FIREBASE_SERVICE_ACCOUNT_JSON:
         cred = credentials.Certificate(
             json.loads(FIREBASE_SERVICE_ACCOUNT_JSON)
         )
 
-    # 2️⃣ 파일 path 방식
+    # 2️⃣ file path
     elif FIREBASE_SERVICE_ACCOUNT_PATH:
         path = Path(FIREBASE_SERVICE_ACCOUNT_PATH)
         if not path.exists():
@@ -34,16 +34,19 @@ def get_firestore():
             )
         cred = credentials.Certificate(str(path))
 
-    # 3️⃣ 둘 다 없으면 명확한 에러
     else:
         raise RuntimeError(
             "Firebase credentials not configured. "
             "Set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH"
         )
 
-    # Firebase app 중복 초기화 방지
-    if not firebase_admin._apps:
+    # 🔥 공식 방식
+    try:
+        firebase_admin.get_app()
+    except ValueError:
         _app = initialize_app(cred)
+
+    print("✅ Firestore initialized")
 
     _db = firestore.client()
     return _db
