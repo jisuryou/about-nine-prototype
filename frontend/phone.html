@@ -70,13 +70,6 @@
     const phoneInput = document.getElementById('phone');
     const countrySelect = document.getElementById('country');
 
-    // =========================================
-    // Recaptcha 최초 1회만 초기화 (중요)
-    // =========================================
-    document.addEventListener('DOMContentLoaded', () => {
-      initRecaptcha();
-    });
-
 
     // =========================================
     // 숫자만 입력
@@ -108,30 +101,43 @@
     // OTP 전송 (Firebase)
     // =========================================
     async function sendOTP() {
-      hideError('error');
+        hideError('error');
 
-      const phone = buildE164();
+        const countryCode = countrySelect.value;
+        const raw = phoneInput.value.replace(/[^0-9]/g, '');
 
-      if (!phone || phone.length < 10) {
-        showError('error', 'enter a valid phone number');
-        return;
-      }
+        if (!raw || raw.length < 8) {
+            showError('error', 'please enter a valid phone number');
+            return;
+        }
 
-      try {
-        showLoading('sending code...');
+        let formatted = raw;
+        if (countryCode === '+82' && raw.startsWith('0')) {
+            formatted = raw.slice(1);
+        }
 
-        await sendFirebaseOTP(phone);
+        const fullPhone = countryCode + formatted;
 
-        saveToLocal('phone', phone);
+        try {
+            showLoading('sending code...');
 
-        hideLoading();
-        navigateTo('otp.html');
+            // ⭐⭐⭐ 여기서 최초 1회 생성
+            if (!window.recaptchaVerifier) {
+            initRecaptcha();
+            }
 
-      } catch (e) {
-        console.error(e);
-        hideLoading();
-        showError('error', 'failed to send verification code');
-      }
+            await sendFirebaseOTP(fullPhone);
+
+            saveToLocal('phone', fullPhone);
+
+            hideLoading();
+            navigateTo('otp.html');
+
+        } catch (e) {
+            console.error(e);
+            hideLoading();
+            showError('error', 'failed to send verification code');
+        }
     }
 
 

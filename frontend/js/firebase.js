@@ -22,15 +22,15 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 
-// ========================
-// Phone Auth helpers
-// ========================
+// ==========================
+// ⭐⭐⭐ 핵심 수정 부분
+// ==========================
 
 window.initRecaptcha = () => {
   window.recaptchaVerifier = new RecaptchaVerifier(
-    "recaptcha-container",
-    { size: "invisible" },
-    auth
+    auth,                    // ⭐ auth FIRST
+    "recaptcha-container",   // ⭐ container SECOND
+    { size: "invisible" }    // ⭐ options THIRD
   );
 };
 
