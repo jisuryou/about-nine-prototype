@@ -7,225 +7,45 @@
 
     <link rel="stylesheet" href="css/style.css" />
     <script type="module" src="js/firebase.js"></script>
-
-    <style>
-      body {
-        margin: 0;
-        background: radial-gradient(
-          circle at top,
-          #3a3a3a 0%,
-          #1c1c1c 60%,
-          #111 100%
-        );
-        color: white;
-        font-family: system-ui;
-      }
-
-      /* ======================
-   layout
-====================== */
-
-      .page {
-        max-width: 500px;
-        margin: auto;
-      }
-
-      .header {
-        text-align: center;
-        font-size: 30px;
-        padding: 28px 0;
-        font-weight: 600;
-      }
-
-      .chat {
-        height: calc(100vh - 160px);
-        overflow-y: auto;
-        padding: 0 20px 20px;
-        display: flex;
-        flex-direction: column;
-      }
-
-      /* ======================
-   bubbles
-====================== */
-
-      .row {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 14px;
-      }
-
-      .mine-row {
-        justify-content: flex-end;
-      }
-
-      .avatar {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        background: #d9d9d9;
-        flex-shrink: 0;
-      }
-
-      .bubble {
-        background: #2b2b2b;
-        padding: 14px 18px;
-        border-radius: 22px;
-        max-width: 72%;
-        line-height: 1.5;
-        white-space: pre-line;
-      }
-
-      .mine {
-        background: linear-gradient(135deg, #5b7fff, #7b5bff);
-      }
-
-      /* ======================
-   input area
-====================== */
-
-      .input-area {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        padding: 16px;
-        background: #151515;
-        border-top: 1px solid #2b2b2b;
-      }
-
-      .wrap {
-        max-width: 500px;
-        margin: auto;
-        display: flex;
-        gap: 10px;
-        align-items: center;
-      }
-
-      /* select + slider 동일폭 */
-      select,
-      .range-wrap {
-        flex: 1;
-      }
-
-      select {
-        background: #2a2a2a;
-        border: none;
-        border-radius: 28px;
-        padding: 14px 18px;
-        color: white;
-      }
-
-      /* send */
-      .send {
-        width: 52px;
-        height: 52px;
-        border-radius: 50%;
-        border: none;
-        background: linear-gradient(135deg, #5b7fff, #7b5bff);
-        color: white;
-        font-size: 20px;
-      }
-
-      /* ======================
-   dual slider
-====================== */
-
-      .range-wrap {
-        padding: 12px 16px;
-        background: #2a2a2a;
-        border-radius: 24px;
-      }
-
-      .range-values {
-        text-align: center;
-        font-size: 14px;
-        margin-bottom: 8px;
-      }
-
-      .range-track {
-        position: relative;
-        height: 36px;
-      }
-
-      .range-track::before {
-        content: "";
-        position: absolute;
-        top: 16px;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: #444;
-        border-radius: 4px;
-      }
-
-      .range-fill {
-        position: absolute;
-        top: 16px;
-        height: 4px;
-        background: #7b5bff;
-        border-radius: 4px;
-      }
-
-      .range-track input {
-        position: absolute;
-        width: 100%;
-        height: 36px;
-        pointer-events: none;
-        background: none;
-        -webkit-appearance: none;
-      }
-
-      .range-track input::-webkit-slider-thumb {
-        pointer-events: auto;
-        -webkit-appearance: none;
-        width: 18px;
-        height: 18px;
-        border-radius: 50%;
-        background: #7b5bff;
-      }
-    </style>
   </head>
 
   <body>
-    <div class="page">
-      <div class="header">COCO</div>
-      <div id="chat" class="chat"></div>
-    </div>
+    <div class="chat-container">
+      <div class="chat-header brand-text">COCO</div>
+      <div id="chat" class="chat-messages"></div>
 
-    <div class="input-area">
-      <div class="wrap">
-        <select id="select" disabled></select>
+      <div class="chat-input-area">
+        <div class="chat-input-wrap">
+          <select id="select" class="chat-select" disabled></select>
 
-        <div id="ageBox" class="range-wrap" style="display: none">
-          <div id="ageText" class="range-values">20 - 60</div>
-          <div class="range-track">
-            <div id="rangeFill" class="range-fill"></div>
-            <input id="minAge" type="range" min="20" max="60" value="20" />
-            <input id="maxAge" type="range" min="20" max="60" value="60" />
+          <div id="ageBox" class="age-range-box">
+            <span id="minText" class="age-value">20</span>
+            <div class="age-slider-container">
+              <div class="age-slider-track">
+                <div id="rangeFill" class="age-slider-fill"></div>
+                <input id="minAge" type="range" min="20" max="60" value="20" />
+                <input id="maxAge" type="range" min="20" max="60" value="60" />
+              </div>
+            </div>
+            <span id="maxText" class="age-value">60</span>
           </div>
-        </div>
 
-        <button id="send" class="send" disabled>➤</button>
+          <button id="send" class="chat-send" disabled>➤</button>
+        </div>
       </div>
     </div>
 
     <script src="js/common.js"></script>
 
     <script>
-      /* ======================
-   location guard
-====================== */
-
+      /* location guard */
       if (!getFromLocal("location")) {
         navigateTo("location-permission.html");
       }
 
-      /* ======================
-   chat helpers
-====================== */
-
+      /* chat helpers */
       const chat = document.getElementById("chat");
+      let lastMessageType = null;
 
       function scrollBottom() {
         requestAnimationFrame(() => {
@@ -234,36 +54,40 @@
       }
 
       function addBot(t) {
+        const showAvatar = lastMessageType !== "bot";
+
         chat.insertAdjacentHTML(
           "beforeend",
-          `<div class="row">
-      <div class="avatar"></div>
-      <div class="bubble">${t}</div>
-    </div>`,
+          `<div class="chat-row">
+            ${showAvatar ? '<div class="chat-avatar"></div>' : '<div style="width: 36px; flex-shrink: 0;"></div>'}
+            <div class="chat-bubble">${t}</div>
+          </div>`,
         );
+
+        lastMessageType = "bot";
         scrollBottom();
       }
 
       function addMine(t) {
         chat.insertAdjacentHTML(
           "beforeend",
-          `<div class="row mine-row">
-      <div class="bubble mine">${t}</div>
-    </div>`,
+          `<div class="chat-row mine">
+            <div class="chat-bubble mine">${t}</div>
+          </div>`,
         );
+
+        lastMessageType = "user";
         scrollBottom();
       }
 
-      /* ======================
-   questions
-====================== */
-
+      /* questions */
       const firstName = getFromLocal("firstName") || "there";
 
       const Q = [
-        { type: "bot", text: `hi ${firstName}, i’m coco` },
-        { type: "bot", text: "let’s find someone who really gets you" },
-        { type: "bot", text: "to do that,\nwe need to get to know you first" },
+        { type: "bot", text: `hi ${firstName}, i'm coco` },
+        { type: "bot", text: "let's find someone who really gets you" },
+        { type: "bot", text: "to do that," },
+        { type: "bot", text: "we need to get to know you first" },
 
         {
           type: "select",
@@ -314,17 +138,14 @@
         },
 
         { type: "bot", text: "thanks for telling me" },
-        { type: "bot", text: "now let’s switch gears" },
+        { type: "bot", text: "now let's switch gears" },
         {
           type: "bot",
-          text: "let’s fill your playlist with the music and artists you love",
+          text: "let's fill your playlist with the music and artists you love",
         },
       ];
 
-      /* ======================
-   state
-====================== */
-
+      /* state */
       let step = 0;
       const answers = {};
 
@@ -332,14 +153,12 @@
       const send = document.getElementById("send");
       const ageBox = document.getElementById("ageBox");
 
-      /* ======================
-   slider logic
-====================== */
-
+      /* slider logic */
       const minAge = document.getElementById("minAge");
       const maxAge = document.getElementById("maxAge");
       const rangeFill = document.getElementById("rangeFill");
-      const ageText = document.getElementById("ageText");
+      const minText = document.getElementById("minText");
+      const maxText = document.getElementById("maxText");
 
       function updateRange() {
         let min = +minAge.value;
@@ -353,43 +172,49 @@
         rangeFill.style.left = pMin + "%";
         rangeFill.style.width = pMax - pMin + "%";
 
-        ageText.innerText = `${min} - ${max}`;
+        minText.innerText = min;
+        maxText.innerText = max;
       }
 
       minAge.oninput = maxAge.oninput = updateRange;
       updateRange();
 
-      /* ======================
-   flow
-====================== */
-
+      /* flow */
       function next() {
         const q = Q[step];
         if (!q) return finish();
 
         if (q.type === "bot") {
+          select.disabled = true; // 추가: 봇 메시지 중에는 비활성화
+          send.disabled = true;
           addBot(q.text);
           step++;
-          setTimeout(next, 800);
+          setTimeout(() => {
+            next();
+            if (step >= Q.length || Q[step].type !== "bot") {
+              send.disabled = false;
+            }
+          }, 800);
           return;
         }
 
         if (q.type === "select") {
           addBot(q.text);
-          select.style.display = "block";
-          ageBox.style.display = "none";
-          select.disabled = false;
+          ageBox.classList.remove("active");
+          select.style.display = "block"; // 추가: select 보이기
+          select.disabled = false; // 활성화
           send.disabled = true;
           select.innerHTML =
-            "<option value=''>select</option>" +
-            q.options.map((o) => `<option>${o}</option>`).join("");
+            `<option value="">select ${q.id}</option>` + // 수정: placeholder 텍스트
+            q.options.map((o) => `<option value="${o}">${o}</option>`).join(""); // 수정: value 추가
           return;
         }
 
         if (q.type === "range") {
           addBot(q.text);
+          ageBox.classList.add("active");
           select.style.display = "none";
-          ageBox.style.display = "block";
+          select.disabled = true; // 추가: range일 때는 select 비활성화
           send.disabled = false;
           return;
         }
@@ -446,13 +271,12 @@
         }
 
         step++;
-        next();
+        setTimeout(() => {
+          next();
+        }, 600);
       };
 
-      /* ======================
-   finish
-====================== */
-
+      /* finish */
       async function finish() {
         showLoading();
         await apiCall("/onboarding/save", "POST", {

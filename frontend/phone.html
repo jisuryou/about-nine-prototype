@@ -14,9 +14,14 @@
     }
 
     .country-select {
-      width: 110px;
-      padding: 12px;
+      width: 90px;
+      padding: 12px 8px; 
       font-size: 14px;
+      appearance: none;  
+      background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23b0b0b0' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center; 
+      padding-right: 28px; 
     }
 
     .phone-input {
@@ -28,7 +33,7 @@
 <body>
   <div class="container">
     <div>
-      <h1>tell us your<br />phone number</h1>
+      <h1 class="brand-text">tell us your<br />phone number</h1>
 
       <!-- 국가 + 번호 입력 -->
       <div class="phone-row">
@@ -50,15 +55,17 @@
       </div>
 
       <span id="error" class="error hidden"></span>
-
-      <div class="terms-text">
-        by signing up, you are agreeing to our
-        <a href="#">terms of service</a> and
-        <a href="#">privacy policy</a>
-      </div>
     </div>
 
-    <button onclick="sendOTP()">next</button>
+    <div>
+      <div class="bottom-text">
+        by signing up, you are agreeing to<br>
+        our <a href="#">terms of service</a> and
+        <a href="#">privacy policy</a>
+      </div>
+      
+      <button onclick="sendOTP()">next</button>
+    </div>
   </div>
 
   <!-- Firebase invisible recaptcha -->
@@ -70,25 +77,16 @@
     const phoneInput = document.getElementById('phone');
     const countrySelect = document.getElementById('country');
 
-
-    // =========================================
-    // 숫자만 입력
-    // =========================================
     phoneInput.addEventListener('input', (e) => {
       e.target.value = e.target.value.replace(/[^0-9]/g, '');
     });
 
-
-    // =========================================
-    // E.164 형식 생성
-    // =========================================
     function buildE164() {
       const country = countrySelect.value;
       let number = phoneInput.value.replace(/[^0-9]/g, '');
 
       if (!number) return null;
 
-      // 한국/일본 등 앞 0 제거
       if (number.startsWith('0')) {
         number = number.slice(1);
       }
@@ -96,10 +94,6 @@
       return country + number;
     }
 
-
-    // =========================================
-    // OTP 전송 (Firebase)
-    // =========================================
     async function sendOTP() {
         hideError('error');
 
@@ -121,9 +115,8 @@
         try {
             showLoading('sending code...');
 
-            // ⭐⭐⭐ 여기서 최초 1회 생성
             if (!window.recaptchaVerifier) {
-            initRecaptcha();
+              initRecaptcha();
             }
 
             await sendFirebaseOTP(fullPhone);
@@ -140,8 +133,6 @@
         }
     }
 
-
-    // Enter 키
     phoneInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendOTP();
     });

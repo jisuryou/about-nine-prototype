@@ -1,157 +1,69 @@
 <!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Location Permission</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Location Permission</title>
 
-  <link rel="stylesheet" href="css/style.css" />
-  <script type="module" src="js/firebase.js"></script>
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="js/firebase.js"></script>
+  </head>
 
-  <style>
-    body{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:20px;
-    }
+  <body>
+    <div class="container">
+      <div>
+        <div class="brand-text">
+          share your location<br />
+          to meet people nearby
+        </div>
 
-    .permission-card{
-      width:100%;
-      max-width:420px;
-      background:var(--bg-card);
-      border-radius:28px;
-      padding:28px;
-      text-align:center;
-      border:2px solid var(--border-color);
-      box-shadow:0 20px 60px rgba(0,0,0,.5);
-    }
+        <span id="error" class="error hidden"></span>
+      </div>
 
-    .map-preview{
-      width:100%;
-      height:180px;
-      border-radius:18px;
-      margin-bottom:22px;
-      background:
-        linear-gradient(135deg,#2c2c2c,#1a1a1a);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:48px;
-    }
-
-    .title{
-      font-size:22px;
-      font-weight:600;
-      margin-bottom:10px;
-    }
-
-    .desc{
-      color:var(--text-secondary);
-      font-size:14px;
-      line-height:1.6;
-      margin-bottom:26px;
-    }
-
-    .primary-btn{
-      width:100%;
-      padding:16px;
-      border-radius:22px;
-      font-weight:600;
-      font-size:15px;
-      background:var(--accent-yellow);
-      border:none;
-      cursor:pointer;
-    }
-
-    .error{
-      margin-top:14px;
-      font-size:13px;
-      color:#ff5d5d;
-    }
-  </style>
-</head>
-
-<body>
-
-  <div class="permission-card">
-
-    <!-- iOS 느낌 지도 프리뷰 -->
-    <div class="map-preview">📍</div>
-
-    <div class="title">allow location access</div>
-
-    <div class="desc">
-      we use your location to show<br>
-      people within <b>10km nearby</b><br><br>
-      location permission is required<br>
-      to use this app
+      <button onclick="requestLocation()">next</button>
     </div>
 
-    <button class="primary-btn" onclick="requestLocation()">
-      allow while using the app
-    </button>
+    <script src="js/common.js"></script>
 
-    <div id="error" class="error"></div>
+    <script>
+      async function requestLocation() {
+        hideError("error");
 
-  </div>
+        if (!navigator.geolocation) {
+          showError("error", "geolocation not supported");
+          return;
+        }
 
+        showLoading("getting location...");
 
-<script src="js/common.js"></script>
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
 
-<script>
-/*
-=================================================
-중요 정책
-- 동의 안 하면 진행 불가
-- skip 제거
-- 성공해야 onboarding 진행
-=================================================
-*/
+            saveToLocal("location", { lat, lng });
 
-async function requestLocation(){
+            try {
+              await apiCall("/users/update-location", "POST", { lat, lng });
 
-  hideError("error")
-
-  if(!navigator.geolocation){
-    showError("error","geolocation not supported")
-    return
-  }
-
-  showLoading("getting location...")
-
-  navigator.geolocation.getCurrentPosition(
-    async (pos)=>{
-
-      const lat = pos.coords.latitude
-      const lng = pos.coords.longitude
-
-      saveToLocal("location",{lat,lng})
-
-      try{
-        // ⭐ 서버 API 형식 맞춤 (/api + lat/lng)
-        await apiCall("/users/update-location","POST",{lat,lng})
-
-        hideLoading()
-        navigateTo("onboarding-chat.html")
-
-      }catch(e){
-        hideLoading()
-        showError("error","failed to save location")
+              hideLoading();
+              navigateTo("onboarding-chat.html");
+            } catch (e) {
+              hideLoading();
+              showError("error", "failed to save location");
+            }
+          },
+          () => {
+            hideLoading();
+            showError("error", "location permission is required to continue");
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          }
+        );
       }
-    },
-    ()=>{
-      hideLoading()
-      showError("error","location permission is required to continue")
-    },
-    {
-      enableHighAccuracy:true,
-      timeout:10000,
-      maximumAge:0
-    }
-  )
-}
-</script>
-
-</body>
+    </script>
+  </body>
 </html>

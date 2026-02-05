@@ -1,306 +1,167 @@
 <!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Playlist</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Playlist</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="js/firebase.js"></script>
+  </head>
 
-  <link rel="stylesheet" href="css/style.css" />
-  <script type="module" src="js/firebase.js"></script>
+  <body>
+    <div class="playlist-container">
+      <!-- 상단 콘텐츠 그룹 -->
+      <div class="playlist-content">
+        <div class="chat-header brand-text">
+          fill your playlist with <br />
+          the sounds you love
+        </div>
 
-  <style>
-    body{
-      margin:0;
-      min-height:100vh;
-      display:flex;
-      justify-content:center;
-      align-items:flex-start;
-      background:
-        radial-gradient(circle at 50% 10%, #2a2a2a 0%, #151515 60%, #0f0f0f 100%);
-      color:white;
-      font-family: system-ui, -apple-system, sans-serif;
-    }
+        <!-- 검색 -->
+        <div class="search-box">
+          <input
+            id="searchInput"
+            class="search-input"
+            placeholder="song name, artist..."
+          />
+          <button class="search-btn" onclick="searchMusic()"></button>
+        </div>
 
-    .wrap{
-      width:100%;
-      max-width:480px;
-      padding:60px 20px 160px;
-      text-align:center;
-    }
+        <!-- 선택된 곡 -->
+        <div id="chips" class="track-chips"></div>
 
-    h1{
-      font-size:28px;
-      font-weight:500;
-      margin-bottom:40px;
-      line-height:1.4;
-    }
-
-    /* ===== 검색 ===== */
-    .search-box{
-      display:flex;
-      gap:10px;
-      margin-bottom:36px;
-    }
-
-    .search-input{
-      flex:1;
-      height:56px;
-      padding:0 22px;
-      border-radius:28px;
-      border:none;
-      outline:none;
-      background:#2b2b2b;
-      color:white;
-      font-size:16px;
-    }
-
-    .search-btn{
-      width:56px;
-      height:56px;
-      border-radius:50%;
-      border:none;
-      cursor:pointer;
-      background:#3a3a3a;
-      color:white;
-      font-size:18px;
-    }
-
-    /* ===== 선택된 곡 (chips) ===== */
-    .chips{
-      display:flex;
-      flex-direction:column;
-      gap:14px;
-      margin-bottom:40px;
-    }
-
-    .chip{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      background:#3a3a3a;
-      padding:14px 18px;
-      border-radius:999px;
-    }
-
-    .chip-left{
-      display:flex;
-      align-items:center;
-      gap:14px;
-      overflow:hidden;
-    }
-
-    .thumb{
-      width:36px;
-      height:36px;
-      border-radius:50%;
-      background:#cfcfcf;
-      overflow:hidden;
-      flex-shrink:0;
-    }
-
-    .thumb img{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-    }
-
-    .chip-text{
-      font-size:15px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .remove{
-      font-size:20px;
-      cursor:pointer;
-      opacity:.7;
-    }
-
-    /* ===== 검색 결과 ===== */
-    .results{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      text-align:left;
-      margin-bottom:40px;
-    }
-
-    .result{
-      display:flex;
-      align-items:center;
-      gap:12px;
-      background:#262626;
-      padding:10px;
-      border-radius:14px;
-      cursor:pointer;
-    }
-
-    .result img{
-      width:44px;
-      height:44px;
-      border-radius:8px;
-      object-fit:cover;
-    }
-
-    .result-title{
-      font-size:14px;
-      flex:1;
-    }
-
-    /* ===== 하단 ===== */
-    .footer{
-      margin-top:60px;
-      font-size:16px;
-      opacity:.6;
-      text-decoration:underline;
-      cursor:pointer;
-    }
-
-    /* ===== next 버튼 ===== */
-    .next-btn{
-      position:fixed;
-      bottom:24px;
-      left:50%;
-      transform:translateX(-50%);
-      width:calc(100% - 40px);
-      max-width:480px;
-      height:56px;
-      border-radius:28px;
-      border:none;
-      background:linear-gradient(135deg,#5b7fff,#7b5bff);
-      color:white;
-      font-size:16px;
-      cursor:pointer;
-    }
-
-    .next-btn:disabled{
-      opacity:.3;
-      cursor:not-allowed;
-    }
-  </style>
-</head>
-
-<body>
-<div class="wrap">
-
-  <h1>
-    fill your playlist with the<br>
-    sounds you love
-  </h1>
-
-  <!-- 검색 -->
-  <div class="search-box">
-    <input id="searchInput" class="search-input" placeholder="song name, artist..." />
-    <button class="search-btn" onclick="searchMusic()">🔍</button>
-  </div>
-
-  <!-- 선택된 곡 -->
-  <div id="chips" class="chips"></div>
-
-  <!-- 검색 결과 -->
-  <div id="results" class="results"></div>
-
-  <div class="footer" onclick="skip()">maybe later</div>
-</div>
-
-<button id="nextBtn" class="next-btn" disabled>next</button>
-
-<script src="js/common.js"></script>
-
-<script>
-const MAX = 10
-const MIN = 3
-
-let selectedTracks = []
-
-const input   = document.getElementById("searchInput")
-const chips   = document.getElementById("chips")
-const results = document.getElementById("results")
-const nextBtn = document.getElementById("nextBtn")
-
-/* ===== 검색 ===== */
-input.addEventListener("keypress", e=>{
-  if(e.key==="Enter") searchMusic()
-})
-
-async function searchMusic(){
-  const q=input.value.trim()
-  if(!q) return
-
-  results.innerHTML="loading..."
-
-  try{
-    const res = await apiCall(`/music/search?q=${encodeURIComponent(q)}`)
-    renderResults(res.tracks || [])
-  }catch{
-    results.innerHTML="search failed"
-  }
-}
-
-/* ===== 결과 ===== */
-function renderResults(list){
-  results.innerHTML=""
-  list.forEach(t=>{
-    const d=document.createElement("div")
-    d.className="result"
-    d.onclick=()=>addTrack(t)
-    d.innerHTML=`
-      <img src="${t.image}">
-      <div class="result-title">${t.name} – ${t.artist}</div>
-    `
-    results.appendChild(d)
-  })
-}
-
-/* ===== 선택 ===== */
-function addTrack(t){
-  if(selectedTracks.length>=MAX) return
-  if(selectedTracks.some(x=>x.id===t.id)) return
-  selectedTracks.push(t)
-  update()
-}
-
-function removeTrack(i){
-  selectedTracks.splice(i,1)
-  update()
-}
-
-/* ===== UI 갱신 ===== */
-function update(){
-  chips.innerHTML=""
-
-  selectedTracks.forEach((t,i)=>{
-    const d=document.createElement("div")
-    d.className="chip"
-    d.innerHTML=`
-      <div class="chip-left">
-        <div class="thumb"><img src="${t.image}"></div>
-        <div class="chip-text">${t.name} – ${t.artist}</div>
+        <!-- 검색 결과 (스크롤 영역) -->
+        <div id="results" class="search-results"></div>
       </div>
-      <div class="remove" onclick="removeTrack(${i})">×</div>
-    `
-    chips.appendChild(d)
-  })
 
-  nextBtn.disabled = selectedTracks.length < MIN
-  saveToLocal("selected_tracks", selectedTracks)
-}
+      <!-- 하단 버튼 그룹 -->
+      <div>
+        <div class="bottom-text" onclick="skip()">maybe later</div>
+        <button id="nextBtn" disabled>next</button>
+      </div>
+    </div>
 
-/* ===== 완료 / 스킵 ===== */
-async function finish(){
-  if(selectedTracks.length < MIN) return
-  showLoading("saving...")
-  await apiCall("/users/playlist","POST",{tracks:selectedTracks})
-  hideLoading()
-  navigateTo("lounge.html")
-}
+    <script src="js/common.js"></script>
 
-function skip(){
-  navigateTo("lounge.html")
-}
+    <script>
+      const MAX = 10;
+      const MIN = 3;
 
-nextBtn.onclick = finish
-</script>
-</body>
+      let selectedTracks = [];
+
+      const input = document.getElementById("searchInput");
+      const chips = document.getElementById("chips");
+      const results = document.getElementById("results");
+      const nextBtn = document.getElementById("nextBtn");
+
+      /* 검색 */
+      input.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") searchMusic();
+      });
+
+      async function searchMusic() {
+        const q = input.value.trim();
+        if (!q) return;
+
+        results.innerHTML = "";
+        showLoading('searching...');
+
+        try {
+          const res = await apiCall(`/music/search?q=${encodeURIComponent(q)}`);
+          hideLoading();
+          renderResults(res.tracks || []);
+        } catch {
+          hideLoading();
+          results.innerHTML =
+            "<div style='text-align: center; padding: 20px; color: var(--error-red);'>search failed</div>";
+        }
+      }
+
+      /* 결과 렌더링 */
+      function renderResults(list) {
+        results.innerHTML = "";
+        list.forEach((t) => {
+          const d = document.createElement("div");
+          d.className = "search-result";
+
+          const isSelected = selectedTracks.some((x) => x.id === t.id);
+          if (isSelected) {
+            d.classList.add("selected");
+          }
+
+          d.onclick = () => addTrack(t);
+          d.innerHTML = `
+            <img src="${t.image}" alt="${t.name}">
+            <div class="search-result-title">${t.name}</div>
+          `;
+          results.appendChild(d);
+        });
+      }
+
+      /* 선택 */
+      function addTrack(t) {
+        if (selectedTracks.length >= MAX) return;
+        if (selectedTracks.some((x) => x.id === t.id)) return;
+        selectedTracks.push(t);
+        update();
+      }
+
+      function removeTrack(i) {
+        selectedTracks.splice(i, 1);
+        update();
+      }
+
+      /* UI 갱신 */
+      function update() {
+        chips.innerHTML = "";
+
+        selectedTracks.forEach((t, i) => {
+          const d = document.createElement("div");
+          d.className = "track-chip";
+          d.innerHTML = `
+            <span class="track-chip-text">${t.name}</span>
+            <button class="track-chip-remove" onclick="removeTrack(${i})">×</button>
+          `;
+          chips.appendChild(d);
+        });
+
+        nextBtn.disabled = selectedTracks.length < MIN;
+        saveToLocal("selected_tracks", selectedTracks);
+
+        // 검색 결과 업데이트
+        if (results.children.length > 0) {
+          Array.from(results.children).forEach((el) => {
+            const trackName = el.querySelector(
+              ".search-result-title",
+            )?.textContent;
+            if (trackName) {
+              const isSelected = selectedTracks.some(
+                (t) => `${t.name}` === trackName,
+              );
+              if (isSelected) {
+                el.classList.add("selected");
+              } else {
+                el.classList.remove("selected");
+              }
+            }
+          });
+        }
+      }
+
+      /* 완료 / 스킵 */
+      async function finish() {
+        if (selectedTracks.length < MIN) return;
+        showLoading("saving...");
+        await apiCall("/users/playlist", "POST", { tracks: selectedTracks });
+        hideLoading();
+        navigateTo("lounge.html");
+      }
+
+      function skip() {
+        navigateTo("lounge.html");
+      }
+
+      nextBtn.onclick = finish;
+    </script>
+  </body>
 </html>

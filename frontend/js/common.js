@@ -69,7 +69,10 @@ function showLoading(text = '처리 중...') {
     overlay = document.createElement('div');
     overlay.id = 'loading-overlay';
     overlay.innerHTML = `
-      <div class="spinner"></div>
+      <div class="loading-asterisks">
+        <img src="images/asterisk.png" class="asterisk asterisk-1" alt="loading">
+        <img src="images/asterisk.png" class="asterisk asterisk-2" alt="loading">
+      </div>
       <div class="loading-text">${text}</div>
     `;
     document.body.appendChild(overlay);
