@@ -7,7 +7,13 @@
     <link rel="stylesheet" href="css/style.css" />
     <script type="module" src="js/firebase.js"></script>
   </head>
-
+  <style>
+    .music-title {
+      font-size: 14px;
+      flex: 1;
+      color: var(--text-primary);
+    }
+  </style>
   <body>
     <div class="playlist-container">
       <!-- 상단 콘텐츠 그룹 -->
@@ -31,7 +37,7 @@
         <div id="chips" class="track-chips"></div>
 
         <!-- 검색 결과 (스크롤 영역) -->
-        <div id="results" class="search-results"></div>
+        <div id="results" class="card-list"></div>
       </div>
 
       <!-- 하단 버튼 그룹 -->
@@ -48,11 +54,24 @@
       const MIN = 3;
 
       let selectedTracks = [];
+      let fromProfile = false; // 🔥 edit-profile에서 왔는지 추적
 
       const input = document.getElementById("searchInput");
       const chips = document.getElementById("chips");
       const results = document.getElementById("results");
       const nextBtn = document.getElementById("nextBtn");
+
+      /* 🔥 초기화 - 기존 선택 불러오기 */
+      window.onload = () => {
+        const saved = getFromLocal("selected_tracks");
+        if (saved && Array.isArray(saved)) {
+          selectedTracks = saved;
+          update();
+        }
+        
+        // edit-profile에서 온 경우 체크
+        fromProfile = document.referrer.includes("edit-profile.html");
+      };
 
       /* 검색 */
       input.addEventListener("keypress", (e) => {
@@ -82,7 +101,7 @@
         results.innerHTML = "";
         list.forEach((t) => {
           const d = document.createElement("div");
-          d.className = "search-result";
+          d.className = "card";
 
           const isSelected = selectedTracks.some((x) => x.id === t.id);
           if (isSelected) {
@@ -92,7 +111,7 @@
           d.onclick = () => addTrack(t);
           d.innerHTML = `
             <img src="${t.image}" alt="${t.name}">
-            <div class="search-result-title">${t.name}</div>
+            <div class="music-title">${t.name}</div>
           `;
           results.appendChild(d);
         });
@@ -132,7 +151,7 @@
         if (results.children.length > 0) {
           Array.from(results.children).forEach((el) => {
             const trackName = el.querySelector(
-              ".search-result-title",
+              ".music-title",
             )?.textContent;
             if (trackName) {
               const isSelected = selectedTracks.some(
@@ -148,17 +167,28 @@
         }
       }
 
-      /* 완료 / 스킵 */
+      /* 🔥 완료 - edit-profile에서 왔으면 돌아가기 */
       async function finish() {
         if (selectedTracks.length < MIN) return;
         showLoading("saving...");
         await apiCall("/users/playlist", "POST", { tracks: selectedTracks });
         hideLoading();
-        navigateTo("lounge.html");
+        
+        // 🔥 edit-profile에서 왔으면 다시 돌아가기
+        if (fromProfile) {
+          navigateTo("edit-profile.html");
+        } else {
+          navigateTo("lounge.html");
+        }
       }
 
       function skip() {
-        navigateTo("lounge.html");
+        // 🔥 edit-profile에서 왔으면 다시 돌아가기
+        if (fromProfile) {
+          navigateTo("edit-profile.html");
+        } else {
+          navigateTo("lounge.html");
+        }
       }
 
       nextBtn.onclick = finish;

@@ -279,14 +279,27 @@
       /* finish */
       async function finish() {
         showLoading();
+
+        // ✅ localStorage에서 모든 정보 가져오기
+        const firstName = getFromLocal("firstName");
+        const lastName = getFromLocal("lastName");
+        const age = getFromLocal("age");
+        const birthdate = getFromLocal("birthdate");
+        const phone = getFromLocal("phone");
+
         await apiCall("/onboarding/save", "POST", {
           user_id: getFromLocal("user_id"),
           profile: answers,
+          firstName,
+          lastName,
+          age,
+          birthdate,
+          phone,
         });
+
         hideLoading();
         navigateTo("playlist.html");
       }
-
       next();
     </script>
   </body>

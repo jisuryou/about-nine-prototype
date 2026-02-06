@@ -1,362 +1,440 @@
 <!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>About Nine</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>About Nine</title>
 
-  <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/style.css" />
 
-  <!-- firebase -->
-  <script type="module" src="js/firebase.js"></script>
-  <script type="module" src="js/presence.js"></script>
+    <!-- firebase -->
+    <script type="module" src="js/firebase.js"></script>
+    <script type="module" src="js/presence.js"></script>
 
-  <style>
-    body{padding:0;align-items:flex-start;}
+    <style>
+      .user-card-wrapper {
+        position: relative;
+      }
 
-    .main-container{
-      width:100%;
-      max-width:500px;
-      min-height:100vh;
-      display:flex;
-      flex-direction:column;
-    }
+      .user-card-wrapper.offline {
+        opacity: 0.6;
+      }
 
-    .header{
-      padding:20px;
-      text-align:center;
-      border-bottom:1px solid var(--border-color);
-    }
+      .user-card-button {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: auto;
+        padding: 8px 20px;
+        font-size: 14px;
+      }
 
-    .tabs{
-      display:flex;
-      border-bottom:1px solid var(--border-color);
-    }
+      .match-badge {
+        background: var(--accent-yellow);
+        color: black;
+        padding: 6px 12px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 600;
+        position: absolute;
+        right: 120px;
+        top: 50%;
+        transform: translateY(-50%);
+      }
 
-    .tab{
-      flex:1;
-      padding:14px;
-      background:none;
-      border:none;
-      color:var(--text-secondary);
-      cursor:pointer;
-    }
+      .subtitle-text {
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 400;
+      }
 
-    .tab.active{
-      color:var(--text-primary);
-      border-bottom:3px solid var(--accent-yellow);
-    }
+      /* 빈 상태 박스 */
+      .empty-state-box {
+        background: var(--bg-card);
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 260px);
+      }
 
-    .content{
-      flex:1;
-      padding:20px;
-      overflow-y:auto;
-    }
+      .empty-state-box img {
+        width: 48px;
+        height: 48px;
+        margin-bottom: 24px;
+        opacity: 0.9;
+      }
 
-    .subtitle{
-      text-align:center;
-      color:var(--text-secondary);
-      font-size:14px;
-      margin-bottom:20px;
-    }
+      .empty-state-box .message {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--text-primary);
+        max-width: 300px;
+        text-align: center;
+      }
 
-    .user-list{
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-    }
+      .modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        font-family: "Merriweather", serif;
+      }
 
-    .user-card{
-      background:var(--bg-card);
-      padding:16px;
-      border-radius:14px;
-      border:2px solid var(--border-color);
-      cursor:pointer;
-    }
+      .modal.active {
+        display: flex;
+      }
 
-    .user-info{
-      display:flex;
-      align-items:center;
-      gap:10px;
-    }
+      .modal-content {
+        background: var(--bg-card);
+        padding: 30px 20px 20px;
+        border-radius: 16px;
+        width: 90%;
+        max-width: 400px;
+      }
 
-    .avatar{
-      width:44px;
-      height:44px;
-      border-radius:50%;
-      background:var(--border-color);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-    }
+      .modal-content h3 {
+        font-size: 20px;
+        margin-bottom: 20px;
+        color: var(--text-primary);
+      }
 
-    .status-dot{
-      width:10px;
-      height:10px;
-      border-radius:50%;
-      display:inline-block;
-      margin-left:6px;
-    }
+      .modal-tracks {
+        max-height: 300px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+      }
 
-    .online{background:#2ecc71;}
-    .offline{background:#555;}
+      .modal-track-item {
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 14px;
+      }
 
-    .match-score{
-      background:var(--accent-yellow);
-      color:black;
-      padding:4px 10px;
-      border-radius:10px;
-      font-size:12px;
-    }
+      .modal-track-item:last-child {
+        border-bottom: none;
+      }
 
-    .modal{
-      display:none;
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,.7);
-      align-items:center;
-      justify-content:center;
-    }
+      .modal-track-name {
+        color: var(--text-primary);
+        font-weight: 500;
+      }
 
-    .modal.active{display:flex;}
+      .modal-track-artist {
+        color: var(--text-secondary);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+    </style>
+  </head>
 
-    .modal-content{
-      background:var(--bg-card);
-      padding:20px;
-      border-radius:16px;
-      width:90%;
-      max-width:400px;
-    }
-  </style>
-</head>
+  <body>
+    <div class="main-container">
+      <div
+        class="chat-header brand-text"
+        style="text-align: left; color: #8e8e8e"
+      >
+        about nine
+      </div>
 
-<body>
+      <div class="tabs">
+        <button id="loungeTab" class="tab active">lounge</button>
+        <button id="aiTab" class="tab">ai match</button>
+      </div>
 
-<div class="main-container">
-
-  <div class="header">
-    <h2>about nine</h2>
-  </div>
-
-  <div class="tabs">
-    <button id="loungeTab" class="tab active">lounge</button>
-    <button id="aiTab" class="tab">ai match</button>
-  </div>
-
-  <div class="content">
-
-    <!-- lounge -->
-    <div id="loungeContent">
-      <p class="subtitle">people within 10km</p>
-      <div id="userList" class="user-list"></div>
-    </div>
-
-    <!-- ai -->
-    <div id="aiContent" style="display:none;">
-      <p class="subtitle">ai powered matches</p>
-      <div id="aiUserList" class="user-list"></div>
-    </div>
-
-  </div>
-</div>
-
-<!-- modal -->
-<div class="modal" id="playlistModal">
-  <div class="modal-content">
-    <h3 id="modalName"></h3>
-    <div id="modalTracks"></div>
-    <button id="talkBtn">start talk</button>
-  </div>
-</div>
-
-
-<script src="js/common.js"></script>
-
-<script type="module">
-import { rtdb, ref, onValue } from "/js/firebase.js";
-
-let users=[]
-let aiUsers=[]
-let selectedUser=null
-
-
-/* ======================
-   탭
-====================== */
-
-const loungeTab=document.getElementById("loungeTab")
-const aiTab=document.getElementById("aiTab")
-
-loungeTab.onclick=()=>switchTab("lounge")
-aiTab.onclick=()=>switchTab("ai")
-
-function switchTab(tab){
-
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"))
-
-  if(tab==="lounge"){
-    loungeTab.classList.add("active")
-    loungeContent.style.display="block"
-    aiContent.style.display="none"
-    return
-  }
-
-  aiTab.classList.add("active")
-  loungeContent.style.display="none"
-  aiContent.style.display="block"
-
-  if(!isAIMatchTime()){
-    document.getElementById("aiUserList").innerHTML=
-      "<p style='opacity:.5;text-align:center'>matching available 8pm-2am</p>"
-    return
-  }
-
-  if(!aiUsers.length) buildAIMatch()
-}
-
-function isAIMatchTime(){
-  const h=new Date().getHours()
-  return (h>=20 || h<2)
-}
-
-
-/* ======================
-   위치 → 서버 업데이트
-====================== */
-
-async function updateLocation(){
-  if(!navigator.geolocation) return
-
-  return new Promise(resolve=>{
-    navigator.geolocation.getCurrentPosition(async pos=>{
-      await apiCall("/users/update-location","POST",{
-        lat:pos.coords.latitude,
-        lng:pos.coords.longitude
-      })
-      resolve()
-    },()=>resolve())
-  })
-}
-
-
-/* ======================
-   유저 불러오기
-====================== */
-
-async function loadUsers(){
-  const res=await apiCall("/users/list")
-  users=res.users||[]
-  renderUsers(users,"userList")
-}
-
-
-/* ======================
-   AI 추천
-====================== */
-
-function buildAIMatch(){
-  aiUsers=[...users]
-    .sort(()=>Math.random()-0.5)
-    .slice(0,3)
-    .map(u=>({...u,score:70+Math.floor(Math.random()*30)}))
-
-  renderUsers(aiUsers,"aiUserList",true)
-}
-
-
-/* ======================
-   렌더
-====================== */
-
-function renderUsers(list,containerId,showScore=false){
-
-  const el=document.getElementById(containerId)
-
-  if(!list.length){
-    el.innerHTML="<p style='opacity:.5'>no users</p>"
-    return
-  }
-
-  el.innerHTML=list.map(u=>`
-    <div class="user-card" data-id="${u.id}">
-      <div style="display:flex;justify-content:space-between;">
-        <div class="user-info">
-          <div class="avatar">👤</div>
-          <div>
-            ${u.firstName}
-            <span class="status-dot offline" data-id="${u.id}"></span>
-            <div style="font-size:12px;color:gray">${u.age} yrs</div>
-          </div>
+      <div class="content">
+        <!-- lounge -->
+        <div id="loungeContent">
+          <div id="userList" class="card-list"></div>
         </div>
-        ${showScore?`<div class="match-score">${u.score}%</div>`:""}
+
+        <!-- ai -->
+        <div id="aiContent" style="display: none">
+          <div id="aiUserList" class="card-list"></div>
+        </div>
       </div>
     </div>
-  `).join("")
 
-  // 안전한 클릭 바인딩
-  el.querySelectorAll(".user-card").forEach(card=>{
-    card.onclick=()=>{
-      const id=card.dataset.id
-      const user=list.find(x=>x.id===id)
-      openPlaylist(user)
-    }
-  })
-}
+    <!-- 하단 네비게이션 -->
+    <nav id="bottomNav" class="bottom-nav"></nav>
 
+    <!-- modal -->
+    <div class="modal" id="playlistModal">
+      <div class="modal-content">
+        <h3 id="modalName"></h3>
+        <div id="modalTracks" class="modal-tracks"></div>
+      </div>
+    </div>
 
-/* ======================
-   presence realtime
-====================== */
+    <script src="js/common.js"></script>
 
-function listenPresence(){
-  onValue(ref(rtdb,"presence"),snap=>{
-    const pres=snap.val()||{}
+    <script type="module">
+      import { rtdb, ref, onValue } from "/js/firebase.js";
 
-    document.querySelectorAll(".status-dot").forEach(dot=>{
-      const p=pres[dot.dataset.id]
-      dot.className="status-dot "+(p&&p.online?"online":"offline")
-    })
-  })
-}
+      let users = [];
+      let aiUsers = [];
+      let selectedUser = null;
+      let presenceData = {}; // 🔥 presence 상태 저장
 
+      /* ====================== 탭 ====================== */
 
-/* ======================
-   playlist modal
-====================== */
+      const loungeTab = document.getElementById("loungeTab");
+      const aiTab = document.getElementById("aiTab");
+      const loungeContent = document.getElementById("loungeContent");
+      const aiContent = document.getElementById("aiContent");
 
-function openPlaylist(u){
-  selectedUser=u
+      loungeTab.onclick = () => switchTab("lounge");
+      aiTab.onclick = () => switchTab("ai");
 
-  modalName.innerText=u.firstName+"'s playlist"
+      function switchTab(tab) {
+        document
+          .querySelectorAll(".tab")
+          .forEach((t) => t.classList.remove("active"));
 
-  modalTracks.innerHTML=(u.playlist||[])
-    .map(t=>`<div>${t.name} - ${t.artist}</div>`)
-    .join("")
+        if (tab === "lounge") {
+          loungeTab.classList.add("active");
+          loungeContent.style.display = "block";
+          aiContent.style.display = "none";
+          return;
+        }
 
-  playlistModal.classList.add("active")
-}
+        aiTab.classList.add("active");
+        loungeContent.style.display = "none";
+        aiContent.style.display = "block";
 
-talkBtn.onclick=()=>{
-  saveToLocal("chat_partner",selectedUser)
-  navigateTo("waiting.html")
-}
+        if (!isAIMatchTime()) {
+          document.getElementById("aiUserList").innerHTML = `
+      <div class="empty-state-box">
+        <img src="images/asterisk.png" alt="asterisk">
+        <div class="message">the matching begins at 8 p.m.<br>and closes at 2 a.m.</div>
+      </div>
+    `;
+          return;
+        }
 
-playlistModal.onclick=e=>{
-  if(e.target.id==="playlistModal")
-    playlistModal.classList.remove("active")
-}
+        if (!aiUsers.length) buildAIMatch();
+      }
 
+      function isAIMatchTime() {
+        const h = new Date().getHours();
+        return h >= 20 || h < 2;
+      }
 
-/* ======================
-   init
-====================== */
+      /* ====================== 위치 → 서버 업데이트 ====================== */
 
-window.onload=async()=>{
-  await updateLocation()
-  await loadUsers()
-  listenPresence()
-}
-</script>
+      async function updateLocation() {
+        if (!navigator.geolocation) return;
 
-</body>
+        return new Promise((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              await apiCall("/users/update-location", "POST", {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+              });
+              resolve();
+            },
+            () => resolve(),
+          );
+        });
+      }
+
+      /* ====================== 유저 불러오기 ====================== */
+
+      async function loadUsers() {
+        console.log("🔍 Loading users...");
+        const res = await apiCall("/users/list");
+        console.log("📊 API Response:", res);
+        console.log("👥 Users count:", res.users?.length || 0);
+        console.log("👥 Users data:", res.users);
+
+        users = res.users || [];
+        renderUsers(users, "userList");
+      }
+
+      /* ====================== AI 추천 ====================== */
+
+      function buildAIMatch() {
+        aiUsers = [...users]
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 3)
+          .map((u) => ({ ...u, score: 70 + Math.floor(Math.random() * 30) }));
+
+        renderUsers(aiUsers, "aiUserList", true);
+      }
+
+      /* ====================== 🔥 온라인 상태 확인 ====================== */
+
+      function isOnline(userId) {
+        const presence = presenceData[userId];
+        return presence && presence.online === true;
+      }
+
+      /* ====================== 🔥 렌더 (정렬 + 비활성화) ====================== */
+
+      function renderUsers(list, containerId, showScore = false) {
+        const el = document.getElementById(containerId);
+
+        if (!list.length) {
+          el.innerHTML = `
+      <div class="empty-state-box">
+        <img src="images/asterisk.png" alt="asterisk">
+        <div class="message">no one nearby right now.<br>check back soon!</div>
+      </div>
+    `;
+          return;
+        }
+
+        // ✅ 유저가 있을 때만 안내 텍스트 표시
+        const isAiMatch = containerId === "aiUserList";
+        const subtitleText = isAiMatch
+          ? "our recommended matches"
+          : "pick whoever feels right";
+
+        // 🔥 온라인 유저 먼저, 오프라인 유저 나중에 정렬
+        const sortedList = [...list].sort((a, b) => {
+          const aOnline = isOnline(a.id);
+          const bOnline = isOnline(b.id);
+
+          if (aOnline && !bOnline) return -1;
+          if (!aOnline && bOnline) return 1;
+          return 0;
+        });
+
+        const cardsHtml = sortedList
+          .map((u) => {
+            const online = isOnline(u.id);
+
+            return `
+            <div class="user-card-wrapper ${online ? "" : "offline"}">
+              <div class="card" data-id="${u.id}" style="cursor: pointer; padding-right: ${showScore ? "140px" : "120px"};">
+                <div style="flex: 1;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 16px; font-weight: 600;">${u.first_name || u.firstName} ${u.last_name || u.lastName}</span>
+                    <span class="status-dot ${online ? "online" : "offline"}" data-id="${u.id}"></span>
+                  </div>
+                  <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
+                    check out ${u.first_name || u.firstName}'s playlist
+                  </div>
+                </div>
+              </div>
+              ${showScore ? `<div class="match-badge">${u.score}%</div>` : ""}
+              <button class="primary user-card-button" data-user-id="${u.id}" ${online ? "" : "disabled"}>
+                start talk
+              </button>
+            </div>
+          `;
+          })
+          .join("");
+
+        // ✅ 안내 텍스트 + 유저 카드
+        el.innerHTML = `
+    <div class="subtitle-text">${subtitleText}</div>
+    ${cardsHtml}
+  `;
+
+        // 카드 클릭으로 플레이리스트 열기
+        el.querySelectorAll(".card").forEach((card) => {
+          card.onclick = (e) => {
+            if (e.target.tagName === "BUTTON") return;
+            const id = card.dataset.id;
+            const user = sortedList.find((x) => x.id === id);
+            openPlaylist(user);
+          };
+        });
+
+        // 버튼 클릭으로 대화 시작 (온라인인 경우만)
+        el.querySelectorAll(".user-card-button").forEach((btn) => {
+          btn.onclick = (e) => {
+            e.stopPropagation();
+
+            // 🔥 비활성화된 버튼은 무시
+            if (btn.disabled) return;
+
+            const id = btn.dataset.userId;
+            const user = sortedList.find((x) => x.id === id);
+            saveToLocal("chat_partner", user);
+            navigateTo("waiting.html");
+          };
+        });
+      }
+
+      /* ====================== 🔥 presence realtime (재렌더링) ====================== */
+
+      function listenPresence() {
+        onValue(ref(rtdb, "presence"), (snap) => {
+          presenceData = snap.val() || {};
+
+          // 🔥 현재 활성 탭에 따라 재렌더링
+          const currentTab = loungeTab.classList.contains("active")
+            ? "lounge"
+            : "ai";
+
+          if (currentTab === "lounge" && users.length > 0) {
+            renderUsers(users, "userList");
+          } else if (
+            currentTab === "ai" &&
+            aiUsers.length > 0 &&
+            isAIMatchTime()
+          ) {
+            renderUsers(aiUsers, "aiUserList", true);
+          }
+        });
+      }
+
+      /* ====================== playlist modal ====================== */
+
+      function openPlaylist(u) {
+        selectedUser = u;
+
+        const firstName = u.first_name || u.firstName;
+        document.getElementById("modalName").innerText =
+          firstName + "'s playlist";
+
+        document.getElementById("modalTracks").innerHTML = (u.playlist || [])
+          .map(
+            (t) => `
+      <div class="modal-track-item">
+        <div class="modal-track-name">${t.name}</div>
+        <div class="modal-track-artist">${t.artist}</div>
+      </div>
+    `,
+          )
+          .join("");
+
+        document.getElementById("playlistModal").classList.add("active");
+      }
+
+      document.getElementById("playlistModal").onclick = (e) => {
+        // 모달 배경만 클릭했을 때만 닫기
+        if (e.target.id === "playlistModal") {
+          document.getElementById("playlistModal").classList.remove("active");
+        }
+      };
+
+      // 또는 ESC 키로도 닫을 수 있게
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          document.getElementById("playlistModal").classList.remove("active");
+        }
+      });
+
+      /* ====================== init ====================== */
+
+      window.onload = async () => {
+        renderBottomNav("lounge");
+        await updateLocation();
+        listenPresence();
+        await loadUsers();
+      };
+    </script>
+  </body>
 </html>
