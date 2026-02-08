@@ -25,6 +25,9 @@ import {
   getDatabase,
   ref,
   set,
+  get,
+  update,
+  push,
   onDisconnect,
   onValue
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
@@ -68,7 +71,8 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
 
-export { ref, set, onDisconnect, onValue };
+// 🔥 Realtime Database 함수들 export
+export { ref, set, get, update, push, onDisconnect, onValue };
 
 
 /* =====================================================

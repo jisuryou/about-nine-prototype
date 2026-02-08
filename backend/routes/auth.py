@@ -63,7 +63,9 @@ def firebase_login():
     doc = query[0] if query else None
 
     if doc:
-        user_id = doc.to_dict()["id"]
+        user_data = doc.to_dict()
+        user_id = user_data["id"]
+        is_existing_user = user_data.get("onboarding_completed", False)
     else:
         user_id = secrets.token_urlsafe(16)
         db.collection("users").document(user_id).set({
@@ -74,6 +76,9 @@ def firebase_login():
             "location": None,
             "onboarding_completed": False,
         })
+        is_existing_user = False
+        
+        print(f"🆕 New user created: {user_id}")
 
     # =========================
     # session
@@ -86,4 +91,8 @@ def firebase_login():
     # invite 1회용
     session.pop("invite_verified", None)
 
-    return jsonify(success=True, user_id=user_id)
+    return jsonify(
+        success=True, 
+        user_id=user_id,
+        is_existing_user=is_existing_user  # 🔥 기존 유저 여부 반환
+    )

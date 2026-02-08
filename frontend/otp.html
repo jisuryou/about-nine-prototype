@@ -120,7 +120,15 @@
 
           console.log("STEP4: success");
 
-          navigateTo("birthdate.html");
+          // 🔥 기존 유저 vs 신규 유저 분기
+          if (result.is_existing_user) {
+            console.log("✅ Existing user → lounge.html");
+            navigateTo("lounge.html");
+          } else {
+            console.log("🆕 New user → birthdate.html");
+            navigateTo("birthdate.html");
+          }
+
         } catch (e) {
           console.error("OTP FAIL:", e);
           showError("error", "invalid code");

@@ -103,6 +103,8 @@
           const d = document.createElement("div");
           d.className = "card";
 
+          d.setAttribute("data-track-id", t.id);
+
           const isSelected = selectedTracks.some((x) => x.id === t.id);
           if (isSelected) {
             d.classList.add("selected");
@@ -147,16 +149,12 @@
         nextBtn.disabled = selectedTracks.length < MIN;
         saveToLocal("selected_tracks", selectedTracks);
 
-        // 검색 결과 업데이트
+        // 🔥 검색 결과 업데이트 - ID로 비교
         if (results.children.length > 0) {
           Array.from(results.children).forEach((el) => {
-            const trackName = el.querySelector(
-              ".music-title",
-            )?.textContent;
-            if (trackName) {
-              const isSelected = selectedTracks.some(
-                (t) => `${t.name}` === trackName,
-              );
+            const trackId = el.getAttribute("data-track-id");
+            if (trackId) {
+              const isSelected = selectedTracks.some((t) => t.id === trackId);
               if (isSelected) {
                 el.classList.add("selected");
               } else {

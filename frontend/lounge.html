@@ -177,12 +177,34 @@
     <script src="js/common.js"></script>
 
     <script type="module">
-      import { rtdb, ref, onValue } from "/js/firebase.js";
+      import { rtdb, ref, onValue, set, push } from "/js/firebase.js";
+
+      const userId = getFromLocal("user_id");
+      if (!userId) {
+        navigateTo("index.html");
+      }
 
       let users = [];
       let aiUsers = [];
       let selectedUser = null;
-      let presenceData = {}; // 🔥 presence 상태 저장
+      let presenceData = {};
+
+      /* ====================== 주제 설정 ====================== */
+
+      const TOPICS = {
+        1: {
+          name: "food",
+          question: "let's see if you two vibe when it comes to food",
+        },
+        2: {
+          name: "visual",
+          question: "let's see if you two vibe when it comes to visual taste",
+        },
+        3: {
+          name: "music",
+          question: "let's see if you two vibe when it comes to music",
+        },
+      };
 
       /* ====================== 탭 ====================== */
 
@@ -228,7 +250,7 @@
         return h >= 20 || h < 2;
       }
 
-      /* ====================== 위치 → 서버 업데이트 ====================== */
+      /* ====================== 위치 업데이트 ====================== */
 
       async function updateLocation() {
         if (!navigator.geolocation) return;
@@ -353,21 +375,90 @@
 
         // 버튼 클릭으로 대화 시작 (온라인인 경우만)
         el.querySelectorAll(".user-card-button").forEach((btn) => {
-          btn.onclick = (e) => {
+          btn.onclick = async (e) => {
             e.stopPropagation();
 
-            // 🔥 비활성화된 버튼은 무시
             if (btn.disabled) return;
 
             const id = btn.dataset.userId;
             const user = sortedList.find((x) => x.id === id);
-            saveToLocal("chat_partner", user);
-            navigateTo("waiting.html");
+
+            // 🔥 매칭 요청 생성
+            await startMatchRequest(user);
           };
         });
       }
 
-      /* ====================== 🔥 presence realtime (재렌더링) ====================== */
+      /* ====================== 🔥 매칭 요청 시작 ====================== */
+
+      async function startMatchRequest(partner) {
+        saveToLocal("chat_partner", partner);
+
+        try {
+          showLoading("preparing...");
+
+          // 🔥 Backend API로 round 계산 (양쪽 talk_history 확인)
+          const roundRes = await apiCall("/users/calculate-round", "POST", {
+            partner_id: partner.id,
+          });
+
+          hideLoading();
+
+          if (!roundRes.success) {
+            alert("failed to calculate round");
+            return;
+          }
+
+          const round = roundRes.round;
+          const topic = roundRes.topic;
+
+          console.log(`🎯 Backend calculated - Round ${round}: ${topic}`);
+
+          // rtdb에 매칭 요청 생성
+          const requestsRef = ref(rtdb, "match_requests");
+          const newRequestRef = push(requestsRef);
+          const requestId = newRequestRef.key;
+
+          await set(newRequestRef, {
+            initiator: userId,
+            receiver: partner.id,
+            status: "waiting",
+            round: round,
+            topic: topic,
+            timestamp: Date.now(),
+          });
+
+          navigateTo(`waiting.html?mode=initiator&requestId=${requestId}`);
+        } catch (error) {
+          hideLoading();
+          console.error("Failed to start match request:", error);
+          alert("failed to start match request");
+        }
+      }
+
+      /* ====================== 매칭 요청 리스닝 ====================== */
+
+      function listenMatchRequests() {
+        const requestsRef = ref(rtdb, "match_requests");
+
+        onValue(requestsRef, (snapshot) => {
+          const requests = snapshot.val();
+          if (!requests) return;
+
+          for (const [requestId, request] of Object.entries(requests)) {
+            if (request.receiver === userId && request.status === "waiting") {
+              const initiator = users.find((u) => u.id === request.initiator);
+              if (initiator) {
+                saveToLocal("chat_partner", initiator);
+                navigateTo(`waiting.html?mode=receiver&requestId=${requestId}`);
+              }
+              break;
+            }
+          }
+        });
+      }
+
+      /* ====================== presence 리스닝 ====================== */
 
       function listenPresence() {
         onValue(ref(rtdb, "presence"), (snap) => {
@@ -434,6 +525,7 @@
         await updateLocation();
         listenPresence();
         await loadUsers();
+        listenMatchRequests();
       };
     </script>
   </body>

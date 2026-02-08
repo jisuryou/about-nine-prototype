@@ -1,5 +1,5 @@
 from datetime import datetime
-from flask import Blueprint, jsonify, session
+from flask import Blueprint, jsonify, session, request
 from backend.services.firestore import get_firestore
 from backend.utils.request import get_json
 import math
@@ -275,3 +275,181 @@ def update_profile():
     db.collection("users").document(user_id).set(update_data, merge=True)
     
     return jsonify(success=True)
+
+# =========================
+# 🔥 Calculate Round
+# =========================
+@users_bp.route("/calculate-round", methods=["POST"])
+def calculate_round():
+    """
+    두 사용자 간의 다음 대화 라운드 계산
+    
+    양쪽 talk_history를 확인하고 min() 사용 (Safety Net)
+    """
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    data, err, code = get_json()
+    if err:
+        return err, code
+    
+    partner_id = data.get("partner_id")
+    if not partner_id:
+        return jsonify(success=False, message="partner_id required"), 400
+
+    try:
+        db = get_firestore()
+
+        # 🔥 양쪽 talk_history 확인
+        user_talks = get_completed_talks(db, user_id, partner_id)
+        partner_talks = get_completed_talks(db, partner_id, user_id)
+
+        # 🔥 Safety Net: 더 작은 값 사용
+        if len(user_talks) != len(partner_talks):
+            print(f"⚠️ Talk history mismatch: {user_id}={len(user_talks)}, {partner_id}={len(partner_talks)}")
+        
+        completed_count = min(len(user_talks), len(partner_talks))
+
+        # 다음 라운드 (최대 3)
+        next_round = min(completed_count + 1, 3)
+
+        topics = {
+            1: "food",
+            2: "visual",
+            3: "music"
+        }
+        
+        topic = topics[next_round]
+
+        print(f"📊 Round: {user_id} ↔ {partner_id} = {next_round} ({topic})")
+
+        return jsonify(
+            success=True,
+            round=next_round,
+            topic=topic,
+            completed_talks=completed_count
+        )
+
+    except Exception as e:
+        print(f"❌ Error calculating round: {e}")
+        return jsonify(success=False, message=str(e)), 500
+
+
+def get_completed_talks(db, user_id, partner_id):
+    """특정 파트너와의 완료된 대화 목록"""
+    talks_ref = (
+        db.collection("users")
+        .document(user_id)
+        .collection("talk_history")
+    )
+    
+    query = talks_ref.where("partner_id", "==", partner_id).where("completed", "==", True).stream()
+    
+    talks = []
+    for doc in query:
+        talk_data = doc.to_dict()
+        talk_data["id"] = doc.id
+        talks.append(talk_data)
+    
+    return talks
+
+
+# =========================
+# 🔥 Save My Talk (각자 저장)
+# =========================
+@users_bp.route("/save-my-talk", methods=["POST"])
+def save_my_talk():
+    """
+    자신의 대화 기록만 저장
+    
+    Request:
+    {
+        "partner_id": "user456",
+        "round": 1,
+        "topic": "food",
+        "my_selections": ["option1", "option2"],
+        "partner_selections": ["option1", "option3"],
+        "compatibility_score": 85
+    }
+    """
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    data, err, code = get_json()
+    if err:
+        return err, code
+
+    partner_id = data.get("partner_id")
+    round_num = data.get("round")
+    topic = data.get("topic")
+
+    if not all([partner_id, round_num, topic]):
+        return jsonify(success=False, message="missing required fields"), 400
+
+    try:
+        db = get_firestore()
+        from google.cloud.firestore import SERVER_TIMESTAMP
+
+        # 🔥 자신의 talk_history에만 저장
+        my_talk_ref = (
+            db.collection("users")
+            .document(user_id)
+            .collection("talk_history")
+            .document()
+        )
+        
+        my_talk_ref.set({
+            "partner_id": partner_id,
+            "round": round_num,
+            "topic": topic,
+            "completed": True,
+            "timestamp": SERVER_TIMESTAMP,
+            "result": {
+                "compatibility_score": data.get("compatibility_score", 0),
+                "my_selections": data.get("my_selections", []),
+                "partner_selections": data.get("partner_selections", [])
+            }
+        })
+
+        print(f"✅ Talk saved: {user_id} with {partner_id}, Round {round_num}")
+
+        return jsonify(success=True, message="talk history saved")
+
+    except Exception as e:
+        print(f"❌ Error saving talk: {e}")
+        return jsonify(success=False, message=str(e)), 500
+
+
+# =========================
+# 🔥 Talk History
+# =========================
+@users_bp.route("/talk-history", methods=["GET"])
+def get_talk_history():
+    """
+    특정 파트너와의 대화 기록 조회
+    
+    Query: ?partner_id={id}
+    """
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    partner_id = request.args.get("partner_id")
+    
+    if not partner_id:
+        return jsonify(success=False, message="partner_id required"), 400
+
+    try:
+        db = get_firestore()
+        talks = get_completed_talks(db, user_id, partner_id)
+
+        # 시간순 정렬
+        talks.sort(key=lambda x: x.get("timestamp", 0) if x.get("timestamp") else 0)
+
+        return jsonify(success=True, talks=talks)
+
+    except Exception as e:
+        print(f"❌ Error fetching talk history: {e}")
+        return jsonify(success=False, message=str(e)), 500

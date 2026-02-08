@@ -1,155 +1,302 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Waiting</title>
-  <link rel="stylesheet" href="css/style.css">
-  <script type="module" src="js/firebase.js"></script>
-  <style>
-    .waiting-container {
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      min-height: 600px;
-    }
-    
-    .waiting-icon {
-      font-size: 100px;
-      margin-bottom: 40px;
-      animation: float 3s ease-in-out infinite;
-    }
-    
-    @keyframes float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-20px); }
-    }
-    
-    .waiting-title {
-      font-size: 28px;
-      font-weight: 600;
-      margin-bottom: 15px;
-    }
-    
-    .waiting-subtitle {
-      color: var(--text-secondary);
-      font-size: 16px;
-      line-height: 1.8;
-      margin-bottom: 40px;
-    }
-    
-    .partner-info {
-      background: var(--bg-card);
-      padding: 20px;
-      border-radius: 15px;
-      margin-bottom: 30px;
-      display: inline-block;
-      min-width: 200px;
-    }
-    
-    .partner-name {
-      font-size: 20px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 8px;
-    }
-    
-    .partner-age {
-      color: var(--text-secondary);
-      font-size: 14px;
-    }
-    
-    .dots {
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-      margin-top: 20px;
-    }
-    
-    .dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: var(--accent-yellow);
-      animation: blink 1.4s infinite;
-    }
-    
-    .dot:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-    
-    .dot:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-    
-    @keyframes blink {
-      0%, 60%, 100% { opacity: 0.3; }
-      30% { opacity: 1; }
-    }
-    
-    .countdown {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: var(--bg-card);
-      padding: 10px 20px;
-      border-radius: 20px;
-      font-size: 14px;
-      color: var(--text-secondary);
-    }
-  </style>
-</head>
-<body>
-  <div class="countdown" id="countdown">10s</div>
-  
-  <div class="container waiting-container">
-    <div class="waiting-icon">⏳</div>
-    
-    <h1 class="waiting-title">waiting for connection</h1>
-    
-    <div class="partner-info">
-      <div class="partner-name" id="partnerName">Loading...</div>
-      <div class="partner-age" id="partnerAge"></div>
-    </div>
-    
-    <p class="waiting-subtitle">
-      your chat partner will join shortly<br>
-      get ready for a great conversation!
-    </p>
-    
-    <div class="dots">
-      <div class="dot"></div>
-      <div class="dot"></div>
-      <div class="dot"></div>
-    </div>
-  </div>
-  
-  <script src="js/common.js"></script>
-  <script>
-    const partner = getFromLocal('chat_partner');
-    
-    // 파트너 정보 표시
-    if (partner) {
-      document.getElementById('partnerName').textContent = `${partner.firstName} ${partner.lastName}`;
-      document.getElementById('partnerAge').textContent = `${partner.age} years old`;
-    }
-    
-    // 10초 카운트다운
-    let seconds = 10;
-    const countdownEl = document.getElementById('countdown');
-    
-    const interval = setInterval(() => {
-      seconds--;
-      countdownEl.textContent = `${seconds}s`;
-      
-      if (seconds <= 0) {
-        clearInterval(interval);
-        // 옵션 선택 페이지로 이동
-        navigateTo('option-select.html');
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Waiting</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="js/firebase.js"></script>
+
+    <style>
+      .waiting-container {
+        width: 100%;
+        max-width: 480px;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        text-align: center;
+        position: relative;
+        font-family: "Merriweather", serif;
+        padding: 60px 20px 40px;
       }
-    }, 1000);
-  </script>
-</body>
+
+      /* 우측 상단 타이머 */
+      .timer {
+        position: absolute;
+        top: 30px;
+        right: 40px;
+        color: #8e8e8e;
+        font-size: 14px;
+      }
+
+      /* 상단 텍스트 영역 */
+      .waiting-header {
+        flex-shrink: 0;
+      }
+
+      .waiting-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-primary);
+        line-height: 1.4;
+        margin-top: 80px;
+        margin-bottom: 14px;
+      }
+
+      .partner-name {
+        text-decoration: underline;
+      }
+
+      /* 중앙 애니메이션 */
+      .waiting-animation {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .pulse-circle {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ff6ec4 0%, #7873f5 100%);
+        animation: pulse 2s ease-in-out infinite;
+        box-shadow: 0 0 40px rgba(255, 110, 196, 0.6);
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.1);
+          opacity: 0.8;
+        }
+      }
+
+      /* 하단 텍스트 & 버튼 영역 */
+      .waiting-footer {
+        flex-shrink: 0;
+        width: 100%;
+      }
+
+      .waiting-question {
+        font-size: 20px;
+        color: var(--text-primary);
+        line-height: 1.6;
+        margin-bottom: 100px;
+      }
+
+      .waiting-buttons {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+        width: 100%;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="waiting-container">
+      <!-- 타이머 -->
+      <div class="timer" id="timer">10</div>
+
+      <!-- 상단 -->
+      <div class="waiting-header">
+        <div class="waiting-title" id="waitingTitle"></div>
+      </div>
+
+      <!-- 중앙 애니메이션 -->
+      <div class="waiting-animation">
+        <div class="pulse-circle"></div>
+      </div>
+
+      <!-- 하단 -->
+      <div class="waiting-footer">
+        <div class="waiting-question" id="waitingQuestion"></div>
+        <div class="waiting-buttons" id="waitingButtons"></div>
+      </div>
+    </div>
+
+    <script src="js/common.js"></script>
+
+    <script type="module">
+      import { rtdb, ref, onValue, update, get } from "/js/firebase.js";
+
+      const userId = getFromLocal("user_id");
+      if (!userId) {
+        navigateTo("index.html");
+      }
+
+      // URL 파라미터
+      const params = new URLSearchParams(window.location.search);
+      const mode = params.get("mode"); // "initiator" or "receiver"
+      const requestId = params.get("requestId");
+
+      if (!mode || !requestId) {
+        alert("invalid request");
+        navigateTo("lounge.html");
+      }
+
+      const partner = getFromLocal("chat_partner");
+      const partnerName = `${partner.first_name || partner.firstName} ${partner.last_name || partner.lastName}`;
+
+      /* ====================== 🔥 주제 설정 ====================== */
+
+      const TOPICS = {
+        1: {
+          name: "food",
+          question: "let's see if you two vibe when it comes to food",
+        },
+        2: {
+          name: "visual",
+          question: "let's see if you two vibe when it comes to visual taste",
+        },
+        3: {
+          name: "music",
+          question: "let's see if you two vibe when it comes to music",
+        },
+      };
+
+      /* ====================== 🔥 매칭 요청 로드 & UI 초기화 ====================== */
+
+      async function initUI() {
+        try {
+          // 🔥 Firebase에서 match_request 읽기
+          const requestRef = ref(rtdb, `match_requests/${requestId}`);
+          const snapshot = await get(requestRef);
+
+          if (!snapshot.exists()) {
+            alert("request not found");
+            navigateTo("lounge.html");
+            return;
+          }
+
+          const matchRequest = snapshot.val();
+          const round = matchRequest.round || 1;
+          const topic = matchRequest.topic || "food";
+
+          console.log(`🎯 Match Request - Round ${round}: ${topic}`);
+
+          // 🔥 라운드에 맞는 질문 표시
+          const topicData = TOPICS[round];
+          const question = topicData.question;
+
+          const titleEl = document.getElementById("waitingTitle");
+          const questionEl = document.getElementById("waitingQuestion");
+          const buttonsEl = document.getElementById("waitingButtons");
+
+          if (mode === "initiator") {
+            // 내가 요청한 경우
+            titleEl.innerHTML = `waiting for a chat with<br><span class="partner-name">${partnerName}</span>`;
+            questionEl.textContent = question;
+            buttonsEl.innerHTML = ""; // 버튼 없음
+          } else {
+            // 상대가 요청한 경우
+            titleEl.innerHTML = `<span class="partner-name">${partnerName}</span><br>wants to start a chat<br>with you`;
+            questionEl.textContent = question;
+            buttonsEl.innerHTML = `
+            <button onclick="acceptMatch()">enter</button>
+            <div class="bottom-text" onclick="rejectMatch()" style="cursor: pointer; margin-top: 16px;">maybe later</div>
+          `;
+          }
+
+          // 🔥 localStorage에 저장 (option-select.html에서 사용)
+          saveToLocal("current_round", round);
+          saveToLocal("current_topic", topic);
+
+          // Firebase 리스닝 시작
+          startListening();
+        } catch (error) {
+          console.error("Failed to load match request:", error);
+          alert("failed to load match request");
+          navigateTo("lounge.html");
+        }
+      }
+
+      /* ====================== 타이머 ====================== */
+
+      let timeLeft = 10;
+      const timerEl = document.getElementById("timer");
+
+      const timerInterval = setInterval(() => {
+        timeLeft--;
+        timerEl.textContent = timeLeft;
+
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          handleTimeout();
+        }
+      }, 1000);
+
+      /* ====================== Firebase 리스닝 ====================== */
+
+      function startListening() {
+        const requestRef = ref(rtdb, `match_requests/${requestId}`);
+
+        onValue(requestRef, (snapshot) => {
+          const data = snapshot.val();
+          if (!data) return;
+
+          if (data.status === "accepted") {
+            clearInterval(timerInterval);
+            navigateTo("option-select.html");
+          } else if (data.status === "rejected") {
+            clearInterval(timerInterval);
+            alert("the other person declined");
+            navigateTo("lounge.html");
+          } else if (data.status === "timeout") {
+            clearInterval(timerInterval);
+            alert("request timed out");
+            navigateTo("lounge.html");
+          }
+        });
+      }
+
+      /* ====================== 액션 ====================== */
+
+      // 수락
+      window.acceptMatch = async function () {
+        const requestRef = ref(rtdb, `match_requests/${requestId}`);
+        await update(requestRef, {
+          status: "accepted",
+        });
+      };
+
+      // 거절
+      window.rejectMatch = async function () {
+        const requestRef = ref(rtdb, `match_requests/${requestId}`);
+        await update(requestRef, {
+          status: "rejected",
+        });
+        navigateTo("lounge.html");
+      };
+
+      // 타임아웃
+      async function handleTimeout() {
+        const requestRef = ref(rtdb, `match_requests/${requestId}`);
+        await update(requestRef, {
+          status: "timeout",
+        });
+        navigateTo("lounge.html");
+      }
+
+      /* ====================== 정리 ====================== */
+
+      window.addEventListener("beforeunload", () => {
+        clearInterval(timerInterval);
+      });
+
+      /* ====================== Init ====================== */
+
+      window.onload = () => {
+        initUI();
+      };
+    </script>
+  </body>
 </html>
