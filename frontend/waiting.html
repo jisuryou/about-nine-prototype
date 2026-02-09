@@ -158,8 +158,8 @@
           question: "let's see if you two vibe when it comes to visual taste",
         },
         3: {
-          name: "music",
-          question: "let's see if you two vibe when it comes to music",
+          name: "life",
+          question: "feel free to be open about your expectations for life",
         },
       };
 
@@ -245,7 +245,8 @@
 
           if (data.status === "accepted") {
             clearInterval(timerInterval);
-            navigateTo("option-select.html");
+            saveToLocal("match_request_id", requestId);
+            navigateTo(`option-select.html?requestId=${requestId}`);
           } else if (data.status === "rejected") {
             clearInterval(timerInterval);
             alert("the other person declined");

@@ -5,6 +5,7 @@ from firebase_admin import credentials, firestore, initialize_app
 from backend.config import (
     FIREBASE_SERVICE_ACCOUNT_JSON,
     FIREBASE_SERVICE_ACCOUNT_PATH,
+    FIREBASE_DB_URL,
 )
 
 _app = None
@@ -44,9 +45,15 @@ def get_firestore():
     try:
         firebase_admin.get_app()
     except ValueError:
-        _app = initialize_app(cred)
+        options = {}
+        if FIREBASE_DB_URL:
+            options['databaseURL'] = FIREBASE_DB_URL
+        
+        _app = initialize_app(cred, options)
 
     print("✅ Firestore initialized")
+    if FIREBASE_DB_URL:
+        print(f"✅ RTDB URL: {FIREBASE_DB_URL}")
 
     _db = firestore.client()
     return _db

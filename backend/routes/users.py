@@ -3,8 +3,88 @@ from flask import Blueprint, jsonify, session, request
 from backend.services.firestore import get_firestore
 from backend.utils.request import get_json
 import math
+import random
+import os
 
 users_bp = Blueprint("users", __name__, url_prefix="/api/users")
+
+# =========================
+# 이미지 파일 스캔
+# =========================
+def get_image_files(topic, category):
+    """
+    실제 파일 시스템에서 이미지 파일 목록 가져오기
+    """
+    # 프로젝트 루트 기준 경로
+    base_path = os.path.join("frontend", "images", topic, category)
+    
+    if not os.path.exists(base_path):
+        print(f"⚠️ Path not found: {base_path}")
+        return []
+    
+    # .png, .jpg 파일만 필터링
+    files = [f for f in os.listdir(base_path) 
+             if f.endswith(('.png', '.jpg', '.jpeg'))]
+    
+    return files
+
+# =========================
+# 질문 풀
+# =========================
+QUESTIONS = {
+    "food": [
+        "What are you craving right now?",
+        "What do you want to eat when you're stressed?",
+        "If you could only eat one food for three years, what would it be?",
+        "What's your soul food?",
+        "What do you want to eat when you need comfort?",
+        "Which food best represents your taste?",
+        "What did you have for dinner most recently?",
+        "What would you want to cook for your partner?",
+        "What tastes even better when you're in a good mood?",
+        "What would you eat to cure a hangover?",
+        "What would you want as your last meal?",
+        "What would you want to eat on a first date?",
+        "What tastes better when you eat alone?",
+        "Which one appeals to you the least?",
+        "What do you want for lunch tomorrow?",
+        "What would you eat right after ending a diet?",
+        "What would you want to cook together?",
+        "What would you serve at a housewarming party?",
+        "Which one would you miss most if it disappeared?",
+        "Which one suits a special occasion?",
+        "Which one would make you like someone more if they chose it?",
+        "Which one do you think we'd both choose?"
+    ],
+    "visual": [
+        "Which painting resonates with you the most?",
+        "Which painting would you choose as a gift for someone you care about?",
+        "If you were opening a café, which painting would you hang?",
+        "Which painting would you want to see on your daily commute?",
+        "Which one caught your eye within 3 seconds?",
+        "Which painting would suit a hotel lobby?",
+        "Which painting would you hang in your bedroom?",
+        "Which painting would you look at when you need energy?",
+        "Which painting would you want to see when you're feeling down?",
+        "Which painting would you want to show someone on a first date?",
+        "Which painting do you think your parents would like?",
+        "Which painting best represents who you are?",
+        "Which choice would surprise your friends?",
+        "Which painting would make you more attracted to someone if they chose it?",
+        "Which painting would worry you a little if someone chose it?",
+        "Which painting would you want to see right after a breakup?",
+        "Which painting would you look at before a new beginning?",
+        "Which painting feels most valuable to you?"
+    ]
+}
+
+# =========================
+# 이미지 카테고리
+# =========================
+IMAGE_CATEGORIES = {
+    "food": ["italian", "pizza", "others", "dessert", "bread"],
+    "visual": ["abstract", "landscape", "portrait"]
+}
 
 # =========================
 # Playlist
@@ -277,14 +357,25 @@ def update_profile():
     return jsonify(success=True)
 
 # =========================
-# 🔥 Calculate Round
+# 🔥 Calculate Round + Select Question/Options
 # =========================
 @users_bp.route("/calculate-round", methods=["POST"])
 def calculate_round():
     """
-    두 사용자 간의 다음 대화 라운드 계산
+    두 사용자 간의 다음 대화 라운드 계산 + 질문/옵션 선택
     
-    양쪽 talk_history를 확인하고 min() 사용 (Safety Net)
+    Response:
+    {
+        "success": true,
+        "round": 1,
+        "topic": "food",
+        "question": "What are you craving right now?",
+        "options": [
+            {"category": "italian", "imageNum": 3},
+            {"category": "dessert", "imageNum": 7},
+            {"category": "bread", "imageNum": 2}
+        ]
+    }
     """
     user_id = session.get("user_id")
     if not user_id:
@@ -301,11 +392,10 @@ def calculate_round():
     try:
         db = get_firestore()
 
-        # 🔥 양쪽 talk_history 확인
+        # 1️⃣ 양쪽 talk_history 확인
         user_talks = get_completed_talks(db, user_id, partner_id)
         partner_talks = get_completed_talks(db, partner_id, user_id)
 
-        # 🔥 Safety Net: 더 작은 값 사용
         if len(user_talks) != len(partner_talks):
             print(f"⚠️ Talk history mismatch: {user_id}={len(user_talks)}, {partner_id}={len(partner_talks)}")
         
@@ -317,19 +407,45 @@ def calculate_round():
         topics = {
             1: "food",
             2: "visual",
-            3: "music"
+            3: "life"
         }
         
         topic = topics[next_round]
 
-        print(f"📊 Round: {user_id} ↔ {partner_id} = {next_round} ({topic})")
+        # 2️⃣ 질문/옵션 선택 (food/visual만)
+        if topic in ["food", "visual"]:
+            # 이전에 받은 질문들 확인
+            user_questions = get_used_questions(db, user_id, topic)
+            partner_questions = get_used_questions(db, partner_id, topic)
 
-        return jsonify(
-            success=True,
-            round=next_round,
-            topic=topic,
-            completed_talks=completed_count
-        )
+            # 새로운 질문 선택
+            question = select_new_question(topic, user_questions, partner_questions)
+
+            # 랜덤 옵션 선택
+            options = select_random_options(topic)
+        else:
+            # life는 질문/옵션 없음
+            question = None
+            options = None
+
+        print(f"📊 Round: {user_id} ↔ {partner_id} = {next_round} ({topic})")
+        if question:
+            print(f"   Question: {question}")
+            print(f"   Options: {options}")
+
+        response = {
+            "success": True,
+            "round": next_round,
+            "topic": topic,
+            "completed_talks": completed_count
+        }
+
+        if question:
+            response["question"] = question
+        if options:
+            response["options"] = options
+
+        return jsonify(response)
 
     except Exception as e:
         print(f"❌ Error calculating round: {e}")
@@ -355,24 +471,81 @@ def get_completed_talks(db, user_id, partner_id):
     return talks
 
 
+def get_used_questions(db, user_id, topic):
+    """사용자가 이미 받은 질문들 (모든 파트너 포함)"""
+    talks_ref = (
+        db.collection("users")
+        .document(user_id)
+        .collection("talk_history")
+    )
+    
+    query = talks_ref.where("topic", "==", topic).where("completed", "==", True).stream()
+    
+    questions = set()
+    for doc in query:
+        talk_data = doc.to_dict()
+        q = talk_data.get("question")
+        if q:
+            questions.add(q)
+    
+    return questions
+
+
+def select_new_question(topic, user_questions, partner_questions):
+    """
+    새로운 질문 선택 (우선순위: 둘 다 안 받음 > 한 명만 받음 > 아무거나)
+    """
+    all_questions = QUESTIONS.get(topic, [])
+    
+    # 둘 다 안 받은 질문
+    unused_by_both = [q for q in all_questions if q not in user_questions and q not in partner_questions]
+    if unused_by_both:
+        return random.choice(unused_by_both)
+    
+    # 한 명만 받은 질문
+    unused_by_one = [q for q in all_questions if q not in user_questions or q not in partner_questions]
+    if unused_by_one:
+        return random.choice(unused_by_one)
+    
+    # 다 받았으면 아무거나
+    return random.choice(all_questions)
+
+
+def select_random_options(topic):
+    """
+    랜덤 옵션 선택 (실제 파일명 사용)
+    """
+    categories = IMAGE_CATEGORIES.get(topic)
+    if not categories:
+        return None
+    
+    selected_categories = random.sample(categories, 3)
+    
+    options = []
+    for category in selected_categories:
+        # 🔥 실제 파일 목록 가져오기
+        files = get_image_files(topic, category)
+        
+        if not files:
+            print(f"⚠️ No files found for {topic}/{category}")
+            continue
+        
+        # 🔥 랜덤 파일 선택
+        random_file = random.choice(files)
+        
+        options.append({
+            "category": category,
+            "fileName": random_file  # 🔥 실제 파일명
+        })
+    
+    return options
+
+
 # =========================
 # 🔥 Save My Talk (각자 저장)
 # =========================
 @users_bp.route("/save-my-talk", methods=["POST"])
 def save_my_talk():
-    """
-    자신의 대화 기록만 저장
-    
-    Request:
-    {
-        "partner_id": "user456",
-        "round": 1,
-        "topic": "food",
-        "my_selections": ["option1", "option2"],
-        "partner_selections": ["option1", "option3"],
-        "compatibility_score": 85
-    }
-    """
     user_id = session.get("user_id")
     if not user_id:
         return jsonify(success=False, message="not logged in"), 401
@@ -384,6 +557,7 @@ def save_my_talk():
     partner_id = data.get("partner_id")
     round_num = data.get("round")
     topic = data.get("topic")
+    question = data.get("question")  # 🔥 질문 저장
 
     if not all([partner_id, round_num, topic]):
         return jsonify(success=False, message="missing required fields"), 400
@@ -392,7 +566,7 @@ def save_my_talk():
         db = get_firestore()
         from google.cloud.firestore import SERVER_TIMESTAMP
 
-        # 🔥 자신의 talk_history에만 저장
+        # 자신의 talk_history에만 저장
         my_talk_ref = (
             db.collection("users")
             .document(user_id)
@@ -400,7 +574,7 @@ def save_my_talk():
             .document()
         )
         
-        my_talk_ref.set({
+        talk_data = {
             "partner_id": partner_id,
             "round": round_num,
             "topic": topic,
@@ -411,7 +585,13 @@ def save_my_talk():
                 "my_selections": data.get("my_selections", []),
                 "partner_selections": data.get("partner_selections", [])
             }
-        })
+        }
+        
+        # 🔥 질문 저장 (food/visual만)
+        if question:
+            talk_data["question"] = question
+        
+        my_talk_ref.set(talk_data)
 
         print(f"✅ Talk saved: {user_id} with {partner_id}, Round {round_num}")
 
@@ -429,8 +609,6 @@ def save_my_talk():
 def get_talk_history():
     """
     특정 파트너와의 대화 기록 조회
-    
-    Query: ?partner_id={id}
     """
     user_id = session.get("user_id")
     if not user_id:

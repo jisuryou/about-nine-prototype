@@ -201,8 +201,8 @@
           question: "let's see if you two vibe when it comes to visual taste",
         },
         3: {
-          name: "music",
-          question: "let's see if you two vibe when it comes to music",
+          name: "life",
+          question: "feel free to be open about your expectations for life",
         },
       };
 
@@ -411,22 +411,41 @@
 
           const round = roundRes.round;
           const topic = roundRes.topic;
+          const question = roundRes.question;  // 🔥 Backend가 선택한 질문
+          const options = roundRes.options;    // 🔥 Backend가 선택한 옵션
 
-          console.log(`🎯 Backend calculated - Round ${round}: ${topic}`);
+          console.log(
+            `🎯 Backend calculated - Round ${round}: ${topic}`,
+          );
+          if (question) {
+            console.log(`   Question: ${question}`);
+            console.log(`   Options:`, options);
+          }
 
           // rtdb에 매칭 요청 생성
           const requestsRef = ref(rtdb, "match_requests");
           const newRequestRef = push(requestsRef);
           const requestId = newRequestRef.key;
+          saveToLocal("match_request_id", requestId);
 
-          await set(newRequestRef, {
+          const matchData = {
             initiator: userId,
             receiver: partner.id,
             status: "waiting",
             round: round,
             topic: topic,
             timestamp: Date.now(),
-          });
+          };
+
+          // 🔥 질문/옵션 추가 (food/visual만)
+          if (question) {
+            matchData.question = question;
+          }
+          if (options) {
+            matchData.options = options;
+          }
+
+          await set(newRequestRef, matchData);
 
           navigateTo(`waiting.html?mode=initiator&requestId=${requestId}`);
         } catch (error) {

@@ -1,202 +1,658 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Choose Your Preferences</title>
-  <link rel="stylesheet" href="css/style.css">
-  <script type="module" src="js/firebase.js"></script>
-  <style>
-    body {
-      padding: 20px;
-    }
-    
-    .option-container {
-      max-width: 500px;
-      margin: 0 auto;
-    }
-    
-    .progress-bar {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 40px;
-    }
-    
-    .progress-step {
-      flex: 1;
-      height: 4px;
-      background: var(--border-color);
-      border-radius: 2px;
-      transition: all 0.3s;
-    }
-    
-    .progress-step.active {
-      background: var(--accent-yellow);
-    }
-    
-    .step-title {
-      text-align: center;
-      font-size: 14px;
-      color: var(--text-secondary);
-      margin-bottom: 10px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-    
-    .question {
-      text-align: center;
-      font-size: 28px;
-      font-weight: 600;
-      margin-bottom: 40px;
-      line-height: 1.3;
-    }
-    
-    .options-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 15px;
-      margin-bottom: 30px;
-    }
-    
-    .option-card {
-      background: var(--bg-card);
-      border: 3px solid var(--border-color);
-      border-radius: 20px;
-      padding: 30px;
-      cursor: pointer;
-      transition: all 0.3s;
-      text-align: center;
-    }
-    
-    .option-card:hover {
-      border-color: var(--accent-yellow);
-      transform: translateY(-5px);
-    }
-    
-    .option-card.selected {
-      border-color: var(--accent-yellow);
-      background: var(--bg-darker);
-    }
-    
-    .option-icon {
-      font-size: 60px;
-      margin-bottom: 15px;
-    }
-    
-    .option-label {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-    
-    .next-btn {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: calc(100% - 40px);
-      max-width: 460px;
-    }
-  </style>
-</head>
-<body>
-  <div class="option-container">
-    <div class="progress-bar">
-      <div class="progress-step active" id="step1"></div>
-      <div class="progress-step" id="step2"></div>
-    </div>
-    
-    <div class="step-title" id="stepTitle">step 1 of 2</div>
-    
-    <h1 class="question" id="question">which food do you prefer?</h1>
-    
-    <div class="options-grid" id="optionsGrid">
-      <!-- 옵션들이 여기에 추가됩니다 -->
-    </div>
-    
-    <button class="next-btn" id="nextBtn" onclick="nextStep()" disabled>
-      next
-    </button>
-  </div>
-  
-  <script src="js/common.js"></script>
-  <script>
-    let currentStep = 1;
-    let selections = {
-      food: null,
-      art: null
-    };
-    
-    const steps = [
-      {
-        question: "which food do you prefer?",
-        type: 'food',
-        options: [
-          { id: 'pizza', icon: '🍕', label: 'Pizza' },
-          { id: 'sushi', icon: '🍣', label: 'Sushi' },
-          { id: 'pasta', icon: '🍝', label: 'Pasta' }
-        ]
-      },
-      {
-        question: "which art style resonates with you?",
-        type: 'art',
-        options: [
-          { id: 'abstract', icon: '🎨', label: 'Abstract' },
-          { id: 'classical', icon: '🖼️', label: 'Classical' },
-          { id: 'modern', icon: '✨', label: 'Modern' }
-        ]
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Option Select</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="js/firebase.js"></script>
+
+    <style>
+      .option-container {
+        width: 100%;
+        max-width: 480px;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        padding: 30px 20px;
+        font-family: "Merriweather", serif;
+        justify-content: space-between;
+        overflow: hidden;
       }
-    ];
-    
-    // 초기 렌더링
-    renderStep(0);
-    
-    function renderStep(stepIndex) {
-      const step = steps[stepIndex];
-      
-      document.getElementById('stepTitle').textContent = `step ${stepIndex + 1} of 2`;
-      document.getElementById('question').textContent = step.question;
-      
-      const optionsGrid = document.getElementById('optionsGrid');
-      optionsGrid.innerHTML = step.options.map(option => `
-        <div class="option-card" onclick="selectOption('${step.type}', '${option.id}')">
-          <div class="option-icon">${option.icon}</div>
-          <div class="option-label">${option.label}</div>
-        </div>
-      `).join('');
-      
-      // 진행 바 업데이트
-      document.getElementById('step1').classList.toggle('active', stepIndex >= 0);
-      document.getElementById('step2').classList.toggle('active', stepIndex >= 1);
-      
-      // 버튼 비활성화
-      document.getElementById('nextBtn').disabled = true;
-    }
-    
-    function selectOption(type, optionId) {
-      selections[type] = optionId;
-      
-      // 선택 표시
-      document.querySelectorAll('.option-card').forEach(card => {
-        card.classList.remove('selected');
-      });
-      event.currentTarget.classList.add('selected');
-      
-      // 버튼 활성화
-      document.getElementById('nextBtn').disabled = false;
-    }
-    
-    function nextStep() {
-      if (currentStep === 1) {
-        // 2단계로
-        currentStep = 2;
-        renderStep(1);
-      } else {
-        // 완료 - 음성 세션으로
-        saveToLocal('session_options', selections);
-        navigateTo('voice-chat.html');
+
+      .option-header {
+        flex-shrink: 0;
       }
-    }
-  </script>
-</body>
+
+      .topic-badge {
+        background: #525252;
+        color: white;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-size: 14px;
+        width: fit-content;
+        margin: 0 auto 20px;
+      }
+
+      .option-question {
+        font-size: 16px;
+        color: var(--text-primary);
+        line-height: 1.4;
+        text-align: center;
+        white-space: pre-line;
+      }
+
+      /* 캐러셀 */
+      .carousel-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .carousel-track {
+        display: flex;
+        gap: 20px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        scroll-behavior: smooth;
+        width: 100%;
+        padding: 20px calc(50% - 140px);
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+
+      .carousel-track::-webkit-scrollbar {
+        display: none;
+      }
+
+      .carousel-item {
+        flex-shrink: 0;
+        width: 280px;
+        scroll-snap-align: center;
+        transition: all 0.3s ease;
+        opacity: 0.4;
+        transform: scale(0.85);
+      }
+
+      .carousel-item.center {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      .carousel-item img {
+        width: 100%;
+        height: 280px;
+        object-fit: cover;
+        border-radius: 20px;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+      }
+
+      .carousel-item.center img {
+        border-color: white;
+      }
+
+      .carousel-item-label {
+        text-align: center;
+        margin-top: 12px;
+        font-size: 16px;
+        color: var(--text-primary);
+      }
+
+      .carousel-dots {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-top: 20px;
+      }
+
+      .carousel-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #525252;
+        transition: all 0.3s ease;
+      }
+
+      .carousel-dot.active {
+        background: white;
+        border-radius: 4px;
+      }
+
+      /* 가이드 카드 */
+      .guide-cards {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 40px;
+        overflow-y: auto;
+      }
+
+      .guide-card {
+        background: #d9d9d9;
+        border-radius: 16px;
+        padding: 40px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        font-weight: 600;
+        color: black;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+      }
+
+      .guide-card:active {
+        transform: scale(0.95);
+      }
+
+      /* 모달 */
+      .modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.85);
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        padding: 20px;
+      }
+
+      .modal.active {
+        display: flex;
+      }
+
+      .modal-content {
+        background: var(--bg-card);
+        padding: 40px 30px;
+        border-radius: 20px;
+        width: 90%;
+        max-width: 400px;
+        text-align: center;
+      }
+
+      .modal-question {
+        font-size: 18px;
+        line-height: 1.5;
+        color: var(--text-primary);
+        margin-bottom: 30px;
+      }
+
+      .modal-close {
+        width: 100%;
+        padding: 16px;
+        background: var(--text-primary);
+        color: var(--bg-dark);
+        border: none;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .option-footer {
+        flex-shrink: 0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="option-container">
+      <!-- 상단 -->
+      <div class="option-header">
+        <div class="topic-badge" id="topicBadge">topic</div>
+        <div class="option-question" id="questionText"></div>
+      </div>
+
+      <!-- 중앙 -->
+      <div id="optionContent"></div>
+
+      <!-- 하단 버튼 -->
+      <div class="option-footer">
+        <button id="enterBtn">enter</button>
+      </div>
+    </div>
+
+    <!-- 모달 -->
+    <div class="modal" id="questionModal">
+      <div class="modal-content">
+        <div class="modal-question" id="modalQuestion"></div>
+        <button class="modal-close" onclick="closeModal()">close</button>
+      </div>
+    </div>
+
+    <script src="js/common.js"></script>
+
+    <script type="module">
+      import { rtdb, ref, get, update, onValue } from "/js/firebase.js";
+
+      const userId = getFromLocal("user_id");
+      if (!userId) {
+        navigateTo("index.html");
+      }
+
+      const partner = getFromLocal("chat_partner");
+      const round = getFromLocal("current_round") || 1;
+      const topic = getFromLocal("current_topic") || "food";
+
+      console.log(`📍 Option Select - Round ${round}: ${topic}`);
+
+      let selectedOption = null;
+      let currentQuestion = null;
+      let currentCenterIndex = 0;
+      let requestId = null;
+
+      /* ====================== 가이드 질문 (Round 3) ====================== */
+
+      const GUIDE_QUESTIONS = {
+        life: [
+          "What's more important in a long-term relationship: stability or excitement?",
+          "What's your biggest non-negotiable value in life?",
+          "Do you admire your parents' relationship or want something completely different?",
+          "Do you believe in second chances after cheating?",
+          'What does the phrase "living your best life" mean to you?',
+          "Do you think marriage is essential in life?",
+          "When your values conflict with your parents' values, whose do you follow?",
+          "What's your top priority in life: money, love, or success?",
+          "Can you give up reality for your dreams?",
+          "What's the proudest moment of your life?",
+          "If you had to choose between protecting your family or your partner, which would it be?",
+          "Would you rather have the same career for life, or completely change careers every 10 years?",
+          'How do you define a "happy life"?',
+          "What's the scariest thing about life to you?",
+          "If someone loves you intensely but could make you unhappy, would you still choose them?",
+          "Do you have any secrets you're keeping from your family?",
+          "Would you give up love for success?",
+          'Do you believe in "destined encounters"?',
+          "If you could achieve only one thing in your entire life, what would you choose?",
+          "Do you think people can truly change?",
+          "When in your life did you feel most alive, and why?",
+          "If you could erase one regret, would you do it—or do regrets shape who you are?",
+          "Do you think happiness comes more from achieving goals or from appreciating what you already have?",
+          "What's a value you would never compromise on, even for someone you love deeply?",
+        ],
+        travel: [
+          "Would you rather road-trip across the U.S. or backpack through Asia?",
+          "What's more fun: theme parks or national parks?",
+          "How do you feel about camping—romantic or miserable?",
+          "Do you prefer tourist spots or hidden gems?",
+          "Would you rather do skydiving on vacation or a couples' spa?",
+          "Which do you prefer: beach or mountains?",
+          "Urban travel or nature travel—which appeals to you more?",
+          "Do you like spontaneous trips or thorough planning?",
+          "For accommodations, luxury hotel or guesthouse?",
+          "If you fight with your partner during a trip, how do you resolve it?",
+          "Do you want to do adventurous activities when traveling?",
+          "What would you do if your partner has a completely different travel style?",
+          "Trying local food vs. sticking to familiar food—which one?",
+          "If you could only travel to one country for the rest of your life, where would you go?",
+          "Do you think traveling with someone reveals their true personality more than daily life does?",
+          "What's one place that changed the way you see the world?",
+          "Would you rather visit every country once, or return to one place you love every year?",
+          "Do you believe where you go matters more, or who you go with?",
+          "If you could design the perfect couples' trip, what emotions would you want it to create—romance, thrill, peace, or discovery?",
+        ],
+        money: [
+          "Do you think expensive gifts show love, or is thoughtfulness more important?",
+          "How would you feel if your partner made way more money than you?",
+          "Would you rather invest in a home or travel the world?",
+          "If you won the lottery, what's the first thing you'd spend on with your partner?",
+          "Do you think money can buy happiness?",
+          "Do you think love can be shaken because of money?",
+          "If it's something you want to do for life but pays nothing, would you still do it?",
+          "If you had to choose between money or time, which would it be?",
+          "How much do you think you should know about your partner's financial situation?",
+          "When traveling, what's more important: value for money or luxury?",
+          "When do you think is the best moment to spend money?",
+          "Do you believe you can have a joyful relationship even if you're poor?",
+          "If you have more money, does love grow deeper too?",
+          "Do you think you can prove love with money?",
+          "If you and your partner earned very different salaries, how would you want to handle it?",
+          "What's one financial decision you'd want to make together as a couple, not alone?",
+          "Would you rather be with someone generous but irresponsible, or disciplined but stingy?",
+        ],
+        time: [
+          "Is daily texting a must, or are you fine with space?",
+          "How would you spend a perfect Sunday together?",
+          "Do you think long-distance can work if you're both busy?",
+          "Are birthdays and anniversaries a big deal to you, or not really?",
+          "Would you rather binge a Netflix series together or go out every night?",
+          "What feels longer—waiting for a text back or sitting in traffic?",
+          "Is being on time important to you, or are you usually casual about it?",
+          "Do you prefer spontaneous dates or scheduled ones?",
+          "Would you give up sleep for more time with your partner?",
+          "Are you a morning person or a night owl?",
+          "Which do you prefer: morning walks or late-night drives?",
+          "Do you spend weekends actively or just relaxing?",
+          "Can you tolerate a partner who's bad with time management?",
+          "Would you wait for a partner who shows up an hour late to a date?",
+          "What time of day do you most want to spend with your partner?",
+          'If your partner says "I\'m too busy with work" on a special occasion, can you understand?',
+          "Do you need alone time, or do you prefer being together constantly?",
+          "How do you feel about spending all day with your partner?",
+          "Do you think how someone spends their free time reveals who they truly are?",
+          "What's a moment in time you wish you could pause forever?",
+          "Do you see time as something you own, or something that owns you?",
+          'If love had an "expiration date," how long would be enough for you to feel it was worth it?',
+          "Do you think people grow apart more because of lost time together or because of changed priorities?",
+        ],
+        love: [
+          "Do you believe in love at first sight?",
+          "Do you like grand romantic gestures or subtle daily ones?",
+          "How important is kissing compatibility?",
+          'Do you think it\'s normal to say "I love you" within a few months?',
+          "Do you think sexual chemistry can make or break a relationship?",
+          "What's sexier: confidence or mystery?",
+          "Would you ever mix romance with a little bit of risk (like in public)?",
+          "Are you okay with public displays of affection?",
+          "Do you prefer expressing affection with words or actions?",
+          "Are you more proactive when it comes to physical affection?",
+          "Do you feel hurt if your partner declines physical affection when you want it?",
+          "In physical affection, are you the one who leads or prefers to be led?",
+          "If you could only have one form of affection for life, what would you choose? (kissing, hugging, holding hands, etc.)",
+          "Do you think love is a choice we make every day, or a feeling we can't control?",
+          "What's the smallest gesture from a partner that makes you feel deeply loved?",
+          "Do you think long-lasting passion is real, or does it inevitably fade?",
+          "Would you rather have a partner who excites you endlessly but is unstable, or one who is steady but less thrilling?",
+          "What scares you more in love—being vulnerable or being taken for granted?",
+        ],
+        relationship: [
+          "Do you believe arguments make a relationship stronger or weaker?",
+          "What's your biggest dealbreaker in a relationship?",
+          "Do you think jealousy is a sign of love or insecurity?",
+          "Should couples share passwords or keep digital privacy?",
+          'Do you believe in "breaks" in relationships, or is that just a breakup in disguise?',
+          "How do you usually handle conflict: talk it out, cool off, or avoid it?",
+          "How much independence should partners have in a relationship?",
+          'Do you believe "opposites attract," or do similar personalities last longer?',
+          "What makes you feel most secure in a relationship—words, actions, or consistency?",
+          "Do you think long-term relationships should feel easy, or is effort always required?",
+          "Do you think love is proven more by how someone treats you on good days or on bad days?",
+          "Do you think trust, once broken, can ever be fully restored?",
+          "Would you rather have a partner who challenges you constantly or one who always supports you?",
+          "Do you think the strongest relationships are built on similarity, or on learning to navigate differences?",
+        ],
+      };
+
+      /* ====================== 초기화 ====================== */
+
+      window.onload = async () => {
+        document.getElementById("topicBadge").textContent = topic;
+
+        if (topic === "food" || topic === "visual") {
+          await loadAndRenderCarousel();
+        } else {
+          renderGuide();
+        }
+      };
+
+      /* ====================== 🔥 캐러셀 렌더링 (match_request에서 읽기) ====================== */
+
+      async function loadAndRenderCarousel() {
+        try {
+          // 🔥 Firebase에서 match_request 읽기
+          requestId =
+            new URLSearchParams(window.location.search).get("requestId") ||
+            localStorage.getItem("match_request_id");
+
+          if (!requestId) {
+            console.error("No requestId found");
+            return;
+          }
+
+          const requestRef = ref(rtdb, `match_requests/${requestId}`);
+          const snapshot = await get(requestRef);
+
+          if (!snapshot.exists()) {
+            console.error("Match request not found");
+            return;
+          }
+
+          const matchRequest = snapshot.val();
+          const question = matchRequest.question;
+          const options = matchRequest.options;
+
+          console.log("🎯 Match Request Data:", { question, options });
+
+          currentQuestion = question;
+          document.getElementById("questionText").textContent = question;
+          renderCarousel(options);
+
+          startReadyListener();
+        } catch (error) {
+          console.error("Failed to load match request:", error);
+        }
+      }
+
+      function removeExtension(fileName) {
+        return fileName.replace(/\.(png|jpg|jpeg|gif|webp)$/i, "");
+      }
+
+      function renderCarousel(options) {
+        const contentEl = document.getElementById("optionContent");
+        contentEl.innerHTML = `
+          <div class="carousel-container">
+            <div class="carousel-dots">
+              ${options
+                .map(
+                  (_, index) => `
+                <div class="carousel-dot ${index === 0 ? "active" : ""}" data-index="${index}"></div>
+              `,
+                )
+                .join("")}
+            </div>
+            <div class="carousel-track" id="carouselTrack">
+              ${options
+                .map(
+                  (opt, index) => `
+                <div class="carousel-item ${index === 0 ? "center" : ""}" data-index="${index}" data-option="${opt.category}">
+                  <img src="/images/${topic}/${opt.category}/${opt.fileName}" alt="${opt.fileName}">
+                  <div class="carousel-item-label">${removeExtension(opt.fileName)}</div>
+                </div>
+              `,
+                )
+                .join("")}
+            </div>
+          </div>
+        `;
+
+        const track = document.getElementById("carouselTrack");
+
+        // 🔥 첫 번째 아이템 자동 선택
+        selectedOption = options[0].category;
+        console.log("Auto-selected:", selectedOption);
+
+        // 🔥 스크롤 이벤트로 중앙 감지
+        track.addEventListener("scroll", updateCenterItem);
+      }
+
+      function updateCenterItem() {
+        const track = document.getElementById("carouselTrack");
+        const scrollLeft = track.scrollLeft;
+        const itemWidth = 280 + 20; // width + gap
+        const centerIndex = Math.round(scrollLeft / itemWidth);
+
+        if (centerIndex === currentCenterIndex) return;
+        currentCenterIndex = centerIndex;
+
+        // 모든 아이템에서 center 클래스 제거
+        document.querySelectorAll(".carousel-item").forEach((item, index) => {
+          if (index === centerIndex) {
+            item.classList.add("center");
+            selectedOption = item.dataset.option;
+          } else {
+            item.classList.remove("center");
+          }
+        });
+
+        // Dots 업데이트
+        document.querySelectorAll(".carousel-dot").forEach((dot, index) => {
+          if (index === centerIndex) {
+            dot.classList.add("active");
+          } else {
+            dot.classList.remove("active");
+          }
+        });
+
+        console.log("Center changed:", selectedOption);
+      }
+
+      /* ====================== 가이드 렌더링 ====================== */
+
+      function renderGuide() {
+        document.getElementById("questionText").textContent =
+          "there are six topics with questions\n\nopen each card and converse about them";
+
+        const categories = [
+          "life",
+          "time",
+          "travel",
+          "relationship",
+          "love",
+          "money",
+        ];
+
+        // 각 카테고리별 랜덤 질문 선택
+        const selectedQuestions = {};
+        categories.forEach((cat) => {
+          const questions = GUIDE_QUESTIONS[cat];
+          selectedQuestions[cat] =
+            questions[Math.floor(Math.random() * questions.length)];
+        });
+
+        const contentEl = document.getElementById("optionContent");
+        contentEl.innerHTML = `
+          <div class="guide-cards">
+            ${categories
+              .map(
+                (cat) => `
+              <div class="guide-card" data-category="${cat}">
+                ${cat}
+              </div>
+            `,
+              )
+              .join("")}
+          </div>
+        `;
+
+        document.querySelectorAll(".guide-card").forEach((card) => {
+          card.onclick = () => {
+            const category = card.dataset.category;
+            openModal(selectedQuestions[category]);
+          };
+        });
+      }
+
+      /* ====================== 모달 ====================== */
+
+      window.openModal = function (question) {
+        document.getElementById("modalQuestion").textContent = question;
+        document.getElementById("questionModal").classList.add("active");
+      };
+
+      window.closeModal = function () {
+        document.getElementById("questionModal").classList.remove("active");
+      };
+
+      document.getElementById("questionModal").onclick = (e) => {
+        if (e.target.id === "questionModal") {
+          closeModal();
+        }
+      };
+
+      /* ====================== 완료 ====================== */
+
+      function startReadyListener() {
+        if (!requestId) return;
+
+        const requestRef = ref(rtdb, `match_requests/${requestId}`);
+
+        onValue(requestRef, async (snapshot) => {
+          const data = snapshot.val();
+          if (!data) return;
+
+          const initiatorReady = data.initiator_ready || false;
+          const receiverReady = data.receiver_ready || false;
+
+          console.log(
+            `Ready status - Initiator: ${initiatorReady}, Receiver: ${receiverReady}`,
+          );
+
+          if (initiatorReady && receiverReady) {
+            if (!data.recording_sid && data.initiator === userId) {
+              console.log("🎬 서버에 녹화 시작 요청...");
+              
+              try {
+                const response = await fetch("/api/agora/auto-start-recording", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ request_id: requestId })
+                });
+                
+                const result = await response.json();
+                console.log("📥 녹화 시작 응답:", result);
+                
+                if (result.success) {
+                  console.log("✅ 서버에서 녹화 시작 완료");
+                  console.log("   resourceId:", result.resourceId);
+                  console.log("   sid:", result.sid);
+                } else {
+                  console.log("⚠️ 녹화 시작 실패:", result.message);
+                }
+              } catch (error) {
+                console.error("❌ 녹화 시작 요청 실패:", error);
+              }
+            }
+            navigateTo("voice-talk.html");
+          }
+        });
+      }
+
+      document.getElementById("enterBtn").onclick = async () => {
+        if (!requestId) {
+          console.error("No requestId");
+          return;
+        }
+
+        // 선택 저장
+        saveToLocal("user_selection", selectedOption);
+
+        if (currentQuestion) {
+          saveToLocal("current_question", currentQuestion);
+        }
+
+        showLoading("waiting for your partner...");
+
+        try {
+          const requestRef = ref(rtdb, `match_requests/${requestId}`);
+          const snapshot = await get(requestRef);
+          const matchRequest = snapshot.val();
+
+          const isInitiator = matchRequest.initiator === userId;
+          const readyField = isInitiator ? "initiator_ready" : "receiver_ready";
+          const selectionField = isInitiator
+            ? "initiator_selection"
+            : "receiver_selection";
+
+          await update(requestRef, {
+            [readyField]: true,
+            [selectionField]: selectedOption,
+          });
+
+          console.log(
+            `✅ Set ${readyField} = true, ${selectionField} = ${selectedOption}`,
+          );
+        } catch (error) {
+          console.error("Failed to update ready status:", error);
+          hideLoading();
+        }
+      };
+    </script>
+  </body>
 </html>
