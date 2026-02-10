@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from backend.services.analysis_service import analyze_talk_pipeline
 from backend.services.recommend_service import recommend_for_user
 
@@ -19,6 +19,8 @@ def analyze_talk():
 
 @match_bp.route("/recommend", methods=["GET"])
 def recommend():
-    uid = request.headers.get("X-User-ID")
+    uid = session.get("user_id") or request.headers.get("X-User-ID")
+    if not uid:
+        return jsonify(success=False, message="not logged in"), 401
     users = recommend_for_user(uid)
     return jsonify(users=[u for u,_ in users])

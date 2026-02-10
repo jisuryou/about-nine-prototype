@@ -60,6 +60,20 @@
         showError('error', 'please enter a valid date');
         return;
       }
+
+      const y = parseInt(year);
+      const m = parseInt(month);
+      const d = parseInt(day);
+      const candidate = new Date(`${year}-${month}-${day}`);
+      if (
+        Number.isNaN(candidate.getTime()) ||
+        candidate.getFullYear() !== y ||
+        candidate.getMonth() + 1 !== m ||
+        candidate.getDate() !== d
+      ) {
+        showError('error', 'please enter a valid date');
+        return;
+      }
       
       const birthDate = `${year}-${month}-${day}`;
       const age = calculateAge(birthDate);

@@ -248,6 +248,19 @@
       let currentCenterIndex = 0;
       let requestId = null;
 
+      function initRequestId() {
+        if (requestId) return requestId;
+        requestId =
+          new URLSearchParams(window.location.search).get("requestId") ||
+          getFromLocal("match_request_id");
+
+        if (!requestId) {
+          console.error("No requestId found");
+        }
+
+        return requestId;
+      }
+
       /* ====================== 가이드 질문 (Round 3) ====================== */
 
       const GUIDE_QUESTIONS = {
@@ -384,11 +397,13 @@
 
       window.onload = async () => {
         document.getElementById("topicBadge").textContent = topic;
+        initRequestId();
 
         if (topic === "food" || topic === "visual") {
           await loadAndRenderCarousel();
         } else {
           renderGuide();
+          startReadyListener();
         }
       };
 
@@ -397,12 +412,12 @@
       async function loadAndRenderCarousel() {
         try {
           // 🔥 Firebase에서 match_request 읽기
-          requestId =
-            new URLSearchParams(window.location.search).get("requestId") ||
-            localStorage.getItem("match_request_id");
+          initRequestId();
 
           if (!requestId) {
             console.error("No requestId found");
+            alert("invalid request");
+            navigateTo("lounge.html");
             return;
           }
 
@@ -526,6 +541,8 @@
             questions[Math.floor(Math.random() * questions.length)];
         });
 
+        saveToLocal("life_guide_questions", selectedQuestions);
+
         const contentEl = document.getElementById("optionContent");
         contentEl.innerHTML = `
           <div class="guide-cards">
@@ -617,6 +634,8 @@
       document.getElementById("enterBtn").onclick = async () => {
         if (!requestId) {
           console.error("No requestId");
+          alert("invalid request");
+          navigateTo("lounge.html");
           return;
         }
 

@@ -175,6 +175,7 @@
       let aiUsers = [];
       let selectedUser = null;
       let presenceData = {};
+      let currentUserProfile = null;
 
       /* ====================== 주제 설정 ====================== */
 
@@ -245,11 +246,16 @@
         return new Promise((resolve) => {
           navigator.geolocation.getCurrentPosition(
             async (pos) => {
-              await apiCall("/users/update-location", "POST", {
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-              });
-              resolve();
+              try {
+                await apiCall("/users/update-location", "POST", {
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                });
+              } catch (error) {
+                console.error("Failed to update location:", error);
+              } finally {
+                resolve();
+              }
             },
             () => resolve(),
           );
@@ -260,20 +266,33 @@
 
       async function loadUsers() {
         console.log("🔍 Loading users...");
-        const res = await apiCall("/users/list");
-        console.log("📊 API Response:", res);
-        console.log("👥 Users count:", res.users?.length || 0);
-        console.log("👥 Users data:", res.users);
+        try {
+          const res = await apiCall("/users/list");
+          console.log("📊 API Response:", res);
+          console.log("👥 Users count:", res.users?.length || 0);
+          console.log("👥 Users data:", res.users);
 
-        users = res.users || [];
-        renderUsers(users, "userList", "lounge");
+          users = res.users || [];
+          renderUsers(users, "userList", "lounge");
+        } catch (error) {
+          console.error("Failed to load users:", error);
+          users = [];
+          renderUsers(users, "userList", "lounge");
+        }
       }
 
       /* ====================== AI 추천 ====================== */
 
       async function buildAIMatch() {
-        const res = await apiCall("/match/recommend");
-        renderUsers(res.users, "aiUserList", "ai");
+        try {
+          const res = await apiCall("/match/recommend");
+          aiUsers = res.users || [];
+          renderUsers(aiUsers, "aiUserList", "ai");
+        } catch (error) {
+          console.error("Failed to load ai match:", error);
+          aiUsers = [];
+          renderUsers(aiUsers, "aiUserList", "ai");
+        }
       }
 
       /* ====================== 🔥 온라인 상태 확인 ====================== */
@@ -413,6 +432,14 @@
           const requestId = newRequestRef.key;
           saveToLocal("match_request_id", requestId);
 
+          const initiatorProfile = currentUserProfile || {
+            id: userId,
+            first_name: getFromLocal("firstName"),
+            last_name: getFromLocal("lastName"),
+            age: getFromLocal("age"),
+            gender: getFromLocal("gender"),
+          };
+
           const matchData = {
             initiator: userId,
             receiver: partner.id,
@@ -420,6 +447,7 @@
             round: round,
             topic: topic,
             timestamp: Date.now(),
+            initiator_profile: initiatorProfile,
           };
 
           // 🔥 질문/옵션 추가 (food/visual만)
@@ -525,6 +553,16 @@
       /* ====================== init ====================== */
 
       window.onload = async () => {
+        try {
+          const profileRes = await apiCall("/users/profile");
+          currentUserProfile = profileRes.user || null;
+        } catch (error) {
+          console.error("Session check failed:", error);
+          removeFromLocal("user_id");
+          navigateTo("index.html");
+          return;
+        }
+
         renderBottomNav("lounge");
         await updateLocation();
         listenPresence();

@@ -35,6 +35,31 @@
         color: var(--text-secondary);
         margin-bottom: 60px;
       }
+
+      .analysis-progress {
+        width: 100%;
+        max-width: 320px;
+        margin: -40px auto 40px;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 12px;
+      }
+
+      .analysis-bar {
+        width: 100%;
+        height: 6px;
+        border-radius: 999px;
+        background: #2a2a2a;
+        overflow: hidden;
+        margin-top: 8px;
+      }
+
+      .analysis-bar-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #ff6ec4, #7873f5);
+        transition: width 0.4s ease;
+      }
     </style>
   </head>
 
@@ -43,8 +68,19 @@
       <div>
         <h1 class="end-title">the call has ended</h1>
         <div class="end-duration" id="callDuration">call duration --:--</div>
+        <div class="analysis-progress hidden" id="analysisProgress">
+          <div id="analysisText">analyzing... 0%</div>
+          <div class="analysis-bar">
+            <div class="analysis-bar-fill" id="analysisBarFill"></div>
+          </div>
+        </div>
       </div>
-      <button id="nextBtn" class="primary" onclick="handleNext()">next</button>
+      <button id="nextBtn" class="primary" onclick="handleNext()" disabled>
+        next
+      </button>
+      <button id="retryBtn" class="secondary hidden" onclick="retryAnalysis()">
+        retry analysis
+      </button>
     </div>
 
     <script src="js/common.js"></script>
@@ -55,8 +91,6 @@
         collection,
         doc,
         setDoc,
-        updateDoc,
-        arrayUnion,
       } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
       const userId = getFromLocal("user_id");
@@ -64,12 +98,16 @@
       const requestId = getFromLocal("match_request_id");
 
       let matchData = null;
+      let progressTimer = null;
+      let progressValue = 0;
+      let talkId = null;
 
       /* ================= 초기화 ================= */
 
       window.onload = async () => {
         if (!userId || !partner || !requestId) {
           console.error("❌ 필수 데이터 없음");
+          alert("invalid request");
           navigateTo("lounge.html");
           return;
         }
@@ -81,6 +119,7 @@
 
           if (!matchData) {
             console.error("❌ match_request 데이터 없음");
+            alert("request not found");
             navigateTo("lounge.html");
             return;
           }
@@ -89,8 +128,20 @@
 
           // 통화 시간 표시
           displayDuration();
+
+          await processAnalysis();
+
+          if (talkId) {
+            try {
+              await remove(ref(rtdb, `match_requests/${requestId}`));
+              console.log("✅ match_request 삭제 완료");
+            } catch (cleanupError) {
+              console.error("❌ match_request 삭제 실패:", cleanupError);
+            }
+          }
         } catch (e) {
           console.error("❌ 초기화 실패:", e);
+          alert("failed to load request");
           navigateTo("lounge.html");
         }
       };
@@ -120,32 +171,7 @@
       /* ================= Next 버튼 ================= */
 
       window.handleNext = async () => {
-        const nextBtn = document.getElementById("nextBtn");
-
-        nextBtn.disabled = true;
-        showLoading("analyzing your conversation...");
-
-        try {
-          // 1. Firestore talk_history 저장 (🔥 top-level collection)
-          await saveTalkHistory();
-          console.log("✅ talk_history 저장 완료");
-
-          // 2. 분석 요청 (Backend)
-          await analyzeTalk();
-          console.log("✅ 분석 완료");
-
-          // 3. RTDB match_request 삭제
-          await remove(ref(rtdb, `match_requests/${requestId}`));
-          console.log("✅ match_request 삭제 완료");
-
-          // 4. 결과 페이지로 이동
-          navigateTo("talk-result.html");
-        } catch (e) {
-          console.error("❌ Next 처리 실패:", e);
-          alert("An error occurred. Please try again.");
-          nextBtn.disabled = false;
-          hideLoading();
-        }
+        navigateTo("talk-result.html");
       };
 
       /* ================= 🔥 Firestore 저장 (top-level collection) ================= */
@@ -180,7 +206,12 @@
           // Round & Topic
           round: matchData.round || 1,
           topic: matchData.topic || "food",
-          question: matchData.question || "",
+          question:
+            matchData.question ||
+            (matchData.topic === "life"
+              ? "choose a topic and discuss it freely"
+              : ""),
+          options: matchData.options || [],
 
           // 선택 (각자 ID를 키로 사용)
           selections: {
@@ -188,13 +219,22 @@
             [partnerId]: partnerSelection,
           },
 
+          // 응답 (go/no)
+          initiator_response: null,
+          receiver_response: null,
+
           // 통화 정보
           completed: true,
           timestamp: matchData.ended_at || Date.now(),
           duration: duration,
+          call_started_at: matchData.call_started_at || null,
+          call_ended_at: matchData.ended_at || null,
 
           // 녹화 파일
           recording_files: matchData.recording_file_list || [],
+          recording_uploading_status:
+            matchData.recording_uploading_status || null,
+          uid_mapping: matchData.uid_mapping || {},
 
           // 분석 결과 (나중에 업데이트)
           analysis: null,
@@ -206,7 +246,7 @@
         // 🔥 talk_history (top-level collection)에 저장
         const talkRef = doc(collection(db, "talk_history"));
         await setDoc(talkRef, talkData);
-        const talkId = talkRef.id;
+        talkId = talkRef.id;
 
         console.log("✅ talk_history 저장 (top-level):", talkId);
         console.log("   participants:", talkData.participants);
@@ -219,15 +259,89 @@
       /* ================= 분석 요청 ================= */
 
       async function analyzeTalk() {
-        await fetch("/api/match/analyze-talk", {
+        const response = await fetch("/api/match/analyze-talk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            talk_id: getFromLocal("current_talk_id")
-          })
+            talk_id: talkId,
+          }),
         });
-
+        return await response.json();
       }
+
+      function startProgress() {
+        const el = document.getElementById("analysisProgress");
+        const textEl = document.getElementById("analysisText");
+        const barEl = document.getElementById("analysisBarFill");
+
+        el.classList.remove("hidden");
+        progressValue = 0;
+        textEl.textContent = "analyzing... 0%";
+        barEl.style.width = "0%";
+
+        progressTimer = setInterval(() => {
+          const increment = progressValue < 70 ? 4 : 1;
+          progressValue = Math.min(95, progressValue + increment);
+          textEl.textContent = `analyzing... ${progressValue}%`;
+          barEl.style.width = `${progressValue}%`;
+        }, 600);
+      }
+
+      function stopProgress(success = true) {
+        const el = document.getElementById("analysisProgress");
+        const textEl = document.getElementById("analysisText");
+        const barEl = document.getElementById("analysisBarFill");
+        const retryBtn = document.getElementById("retryBtn");
+
+        if (progressTimer) clearInterval(progressTimer);
+        progressTimer = null;
+
+        if (success) {
+          progressValue = 100;
+          textEl.textContent = "analysis complete 100%";
+          barEl.style.width = "100%";
+          retryBtn.classList.add("hidden");
+          setTimeout(() => {
+            el.classList.add("hidden");
+          }, 600);
+        } else {
+          textEl.textContent = "analysis failed. please try again.";
+          barEl.style.width = `${progressValue}%`;
+          retryBtn.classList.remove("hidden");
+        }
+      }
+
+      async function processAnalysis() {
+        const nextBtn = document.getElementById("nextBtn");
+        const retryBtn = document.getElementById("retryBtn");
+        nextBtn.disabled = true;
+        retryBtn.classList.add("hidden");
+        startProgress();
+
+        try {
+          if (!talkId) {
+            await saveTalkHistory();
+            console.log("✅ talk_history 저장 완료");
+          }
+
+          const result = await analyzeTalk();
+          if (!result?.success) {
+            throw new Error(result?.message || "analysis failed");
+          }
+          console.log("✅ 분석 완료");
+
+          stopProgress(true);
+          nextBtn.disabled = false;
+        } catch (e) {
+          console.error("❌ 분석 처리 실패:", e);
+          stopProgress(false);
+          nextBtn.disabled = true;
+        }
+      }
+
+      window.retryAnalysis = async () => {
+        await processAnalysis();
+      };
     </script>
   </body>
 </html>

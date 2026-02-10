@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>History Detail</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="js/firebase.js"></script>
+    <style>
+      .detail-container {
+        width: 100%;
+        max-width: 480px;
+        min-height: 100vh;
+        padding: 30px 20px 90px;
+        margin: 0 auto;
+      }
+
+      .detail-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+
+      .detail-name {
+        font-size: 26px;
+        font-weight: 600;
+      }
+
+      .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #666;
+        display: inline-block;
+        margin-left: 8px;
+      }
+
+      .status-dot.online {
+        background: #4cd964;
+      }
+
+      .detail-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .section {
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 20px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+
+      .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+
+      .score-line {
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+      }
+
+      .selection-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .selection-card {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 14px;
+        padding: 10px;
+        text-align: center;
+      }
+
+      .selection-card img {
+        width: 100%;
+        border-radius: 10px;
+        margin-bottom: 6px;
+      }
+
+      .conversation {
+        font-size: 13px;
+        color: var(--text-secondary);
+        white-space: pre-wrap;
+        line-height: 1.5;
+      }
+
+      .contact-card {
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 20px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+
+      .blocked-text {
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="detail-container">
+      <div class="detail-header">
+        <div class="detail-name" id="partnerName">partner</div>
+        <div class="detail-actions">
+          <button class="secondary" onclick="goBack()">back</button>
+          <button class="secondary" id="blockBtn" onclick="blockUser()">
+            block
+          </button>
+        </div>
+      </div>
+
+      <div id="statusLine"></div>
+      <div id="actionArea"></div>
+      <div id="roundSections"></div>
+    </div>
+
+    <nav id="bottomNav" class="bottom-nav"></nav>
+
+    <script src="js/common.js"></script>
+
+    <script type="module">
+      import { rtdb, ref, onValue, push, set } from "/js/firebase.js";
+      import {
+        collection,
+        doc,
+        getDoc,
+        getDocs,
+        query,
+        where,
+      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+      import { db } from "/js/firebase.js";
+
+      const userId = getFromLocal("user_id");
+      if (!userId) {
+        navigateTo("index.html");
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      const partnerId = params.get("partnerId");
+      if (!partnerId) {
+        navigateTo("history.html");
+      }
+
+      let partner = null;
+      let blockedUsers = new Set();
+      let partnerBlocked = false;
+      let currentUserProfile = null;
+      let presenceData = {};
+      let roundsMap = {};
+      let hadNo = false;
+
+      function roundLabel(topic) {
+        if (topic === "life") return "values";
+        return topic || "";
+      }
+
+      function isOnline(uid) {
+        const presence = presenceData[uid];
+        return presence && presence.online === true;
+      }
+
+      function buildSelectionCard(selection, options, topic, label) {
+        let img = "";
+        if (Array.isArray(options) && options.length) {
+          const opt = options.find((o) => o.category === selection);
+          if (opt) {
+            img = `<img src="/images/${topic}/${opt.category}/${opt.fileName}" alt="${opt.fileName}">`;
+          }
+        }
+
+        const text = selection || "--";
+        return `
+          <div class="selection-card">
+            ${img}
+            <div>${label}</div>
+            <div>${text}</div>
+          </div>
+        `;
+      }
+
+      function renderRounds() {
+        const container = document.getElementById("roundSections");
+        const rounds = [1, 2, 3].filter((r) => roundsMap[r]);
+
+        container.innerHTML = rounds
+          .map((r) => {
+            const talk = roundsMap[r];
+            const score =
+              typeof talk.score === "number" ? talk.score : "--";
+
+            const mySel = talk.selections?.[userId] || "";
+            const partnerSel = talk.selections?.[partnerId] || "";
+
+            const conversation = Array.isArray(talk.conversation)
+              ? talk.conversation
+                  .map((t) => `${t.speaker}: ${t.text}`)
+                  .join("\n")
+              : "analysis pending";
+
+            return `
+              <div class="section">
+                <div class="section-title">${getOrdinal(r)} trial (${roundLabel(
+              talk.topic
+            )})</div>
+                <div class="score-line">chemistry score ${score}</div>
+                <div class="selection-grid">
+                  ${buildSelectionCard(mySel, talk.options, talk.topic, "you")}
+                  ${buildSelectionCard(
+                    partnerSel,
+                    talk.options,
+                    talk.topic,
+                    "partner"
+                  )}
+                </div>
+                <div class="conversation">${conversation}</div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function renderHeader() {
+        const first = partner?.first_name || partner?.firstName || "";
+        const last = partner?.last_name || partner?.lastName || "";
+        const name = `${first} ${last}`.trim() || "your match";
+
+        document.getElementById("partnerName").innerHTML = `${name} <span class="status-dot ${
+          isOnline(partnerId) ? "online" : ""
+        }"></span>`;
+      }
+
+      function renderActionArea() {
+        const actionArea = document.getElementById("actionArea");
+        const statusLine = document.getElementById("statusLine");
+        actionArea.innerHTML = "";
+        statusLine.innerHTML = "";
+
+        if (partnerBlocked || blockedUsers.has(partnerId)) {
+          statusLine.innerHTML = `<div class="blocked-text">blocked user</div>`;
+          return;
+        }
+
+        if (hadNo) {
+          statusLine.innerHTML = `<div class="blocked-text">no match after go/no</div>`;
+          return;
+        }
+
+        const maxRound = Math.max(...Object.keys(roundsMap).map(Number));
+        if (maxRound >= 3) {
+          const phone = partner?.phone || "--";
+          actionArea.innerHTML = `
+            <div class="contact-card">
+              <div>contact</div>
+              <div>${phone}</div>
+            </div>
+          `;
+        } else {
+          actionArea.innerHTML = `
+            <button class="primary" onclick="startTalk()">start talk</button>
+          `;
+        }
+      }
+
+      async function loadData() {
+        const profileRes = await apiCall("/users/profile");
+        blockedUsers = new Set(profileRes?.user?.blocked_users || []);
+        currentUserProfile = profileRes?.user || null;
+
+        const partnerSnap = await getDoc(doc(db, "users", partnerId));
+        if (partnerSnap.exists()) {
+          partner = partnerSnap.data();
+          partnerBlocked = (partner.blocked_users || []).includes(userId);
+        }
+
+        const talksRef = collection(db, "talk_history");
+        const q1 = query(
+          talksRef,
+          where("participants.user_a", "==", userId),
+          where("participants.user_b", "==", partnerId)
+        );
+        const q2 = query(
+          talksRef,
+          where("participants.user_a", "==", partnerId),
+          where("participants.user_b", "==", userId)
+        );
+
+        const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+        const talks = [];
+        snap1.forEach((docSnap) => talks.push({ id: docSnap.id, ...docSnap.data() }));
+        snap2.forEach((docSnap) => talks.push({ id: docSnap.id, ...docSnap.data() }));
+
+        roundsMap = {};
+        hadNo = false;
+        talks.forEach((talk) => {
+          const round = talk.round || 1;
+          const ts = talk.timestamp || 0;
+          const score =
+            typeof talk.analysis?.chemistry_score === "number"
+              ? Math.round(talk.analysis.chemistry_score)
+              : null;
+
+          if (!roundsMap[round] || ts > roundsMap[round].timestamp) {
+            roundsMap[round] = {
+              ...talk,
+              score,
+              timestamp: ts,
+            };
+          }
+
+          if (talk.initiator_response === "no" || talk.receiver_response === "no") {
+            hadNo = true;
+          }
+        });
+
+        renderHeader();
+        renderActionArea();
+        renderRounds();
+      }
+
+      function listenPresence() {
+        onValue(ref(rtdb, "presence"), (snap) => {
+          presenceData = snap.val() || {};
+          renderHeader();
+        });
+      }
+
+      window.startTalk = async () => {
+        if (blockedUsers.has(partnerId) || partnerBlocked || hadNo) return;
+
+        const partnerProfile = await getDoc(doc(db, "users", partnerId));
+        if (!partnerProfile.exists()) return;
+
+        const partnerData = { id: partnerId, ...partnerProfile.data() };
+        saveToLocal("chat_partner", partnerData);
+
+        try {
+          showLoading("preparing...");
+          const roundRes = await apiCall("/talks/calculate-round", "POST", {
+            partner_id: partnerId,
+          });
+          hideLoading();
+
+          if (!roundRes.success) {
+            alert("failed to calculate round");
+            return;
+          }
+
+          const round = roundRes.round;
+          const topic = roundRes.topic;
+          const question = roundRes.question;
+          const options = roundRes.options;
+
+          const requestsRef = ref(rtdb, "match_requests");
+          const newRequestRef = push(requestsRef);
+          const requestId = newRequestRef.key;
+          saveToLocal("match_request_id", requestId);
+
+          const initiatorProfile = currentUserProfile || {
+            id: userId,
+            first_name: getFromLocal("firstName"),
+            last_name: getFromLocal("lastName"),
+            age: getFromLocal("age"),
+            gender: getFromLocal("gender"),
+          };
+
+          const matchData = {
+            initiator: userId,
+            receiver: partnerId,
+            status: "waiting",
+            round,
+            topic,
+            timestamp: Date.now(),
+            initiator_profile: initiatorProfile,
+          };
+
+          if (question) matchData.question = question;
+          if (options) matchData.options = options;
+
+          await set(newRequestRef, matchData);
+          navigateTo(`waiting.html?mode=initiator&requestId=${requestId}`);
+        } catch (error) {
+          hideLoading();
+          console.error("Failed to start match request:", error);
+          alert("failed to start match request");
+        }
+      };
+
+      window.blockUser = async () => {
+        if (!confirm("block this user?")) return;
+        try {
+          await apiCall("/users/block", "POST", { target_id: partnerId });
+          blockedUsers.add(partnerId);
+          renderActionArea();
+        } catch (error) {
+          console.error("Failed to block user:", error);
+          alert("failed to block user");
+        }
+      };
+
+      window.goBack = () => {
+        navigateTo("history.html");
+      };
+
+      function getOrdinal(n) {
+        if (n === 1) return "1st";
+        if (n === 2) return "2nd";
+        if (n === 3) return "3rd";
+        return `${n}th`;
+      }
+
+      window.onload = async () => {
+        renderBottomNav("history");
+        await loadData();
+        listenPresence();
+      };
+    </script>
+  </body>
+</html>

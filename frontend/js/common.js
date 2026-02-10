@@ -10,6 +10,11 @@ async function apiCall(endpoint, method = "GET", data = null) {
     credentials: "include", // 세션 쿠키 포함
   };
 
+  const userId = getFromLocal("user_id");
+  if (userId) {
+    options.headers["X-User-ID"] = userId;
+  }
+
   if (data && method !== "GET") {
     options.body = JSON.stringify(data);
   }

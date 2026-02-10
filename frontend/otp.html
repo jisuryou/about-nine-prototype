@@ -131,7 +131,11 @@
 
         } catch (e) {
           console.error("OTP FAIL:", e);
-          showError("error", "invalid code");
+          if (e?.message?.includes("invite required")) {
+            showError("error", "invite code required");
+          } else {
+            showError("error", "invalid code");
+          }
         }
       }
 

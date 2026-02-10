@@ -287,18 +287,24 @@
         const birthdate = getFromLocal("birthdate");
         const phone = getFromLocal("phone");
 
-        await apiCall("/onboarding/save", "POST", {
-          user_id: getFromLocal("user_id"),
-          profile: answers,
-          firstName,
-          lastName,
-          age,
-          birthdate,
-          phone,
-        });
+        try {
+          await apiCall("/onboarding/save", "POST", {
+            user_id: getFromLocal("user_id"),
+            profile: answers,
+            firstName,
+            lastName,
+            age,
+            birthdate,
+            phone,
+          });
 
-        hideLoading();
-        navigateTo("playlist.html");
+          hideLoading();
+          navigateTo("playlist.html");
+        } catch (error) {
+          console.error("Failed to save onboarding:", error);
+          hideLoading();
+          alert("failed to save profile. please try again.");
+        }
       }
       next();
     </script>

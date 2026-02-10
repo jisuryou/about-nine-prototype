@@ -9,6 +9,7 @@ users.py - 사용자 관련 엔드포인트
 
 from datetime import datetime
 from flask import Blueprint, jsonify, session
+from firebase_admin import firestore
 from backend.services.firestore import get_firestore
 from backend.utils.request import get_json
 import math
@@ -158,6 +159,7 @@ def list_users():
     my_age = me.get("age")
     my_sexual_orientation = me.get("sexual_orientation")
     my_age_pref = me.get("age_preference", {})
+    my_blocked = set(me.get("blocked_users") or [])
 
     print(f"My location: {my_loc}")
     print(f"My gender: {my_gender}, age: {my_age}")
@@ -183,6 +185,12 @@ def list_users():
 
         # 본인 제외
         if u["id"] == uid:
+            filtered_stats["same_user"] += 1
+            continue
+
+        # 차단 확인 (양방향)
+        other_blocked = set(u.get("blocked_users") or [])
+        if u.get("id") in my_blocked or uid in other_blocked:
             filtered_stats["same_user"] += 1
             continue
 
@@ -301,4 +309,34 @@ def update_profile():
     
     db.collection("users").document(user_id).set(update_data, merge=True)
     
+    return jsonify(success=True)
+
+
+# =========================
+# Block User
+# =========================
+@users_bp.route("/block", methods=["POST"])
+def block_user():
+    """유저 차단"""
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    data, err, code = get_json()
+    if err:
+        return err, code
+
+    target_id = data.get("target_id")
+    if not target_id:
+        return jsonify(success=False, message="target_id required"), 400
+
+    db = get_firestore()
+    db.collection("users").document(user_id).set(
+        {
+            "blocked_users": firestore.ArrayUnion([target_id]),
+            "blocked_updated_at": datetime.utcnow().isoformat(),
+        },
+        merge=True,
+    )
+
     return jsonify(success=True)

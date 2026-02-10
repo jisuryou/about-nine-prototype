@@ -93,12 +93,11 @@
 
     <script src="js/common.js"></script>
     <script>
-      function enterApp() {
-        const userId = getFromLocal("user_id");
-
-        if (userId) {
+      async function enterApp() {
+        try {
+          await apiCall("/users/profile");
           navigateTo("lounge.html");
-        } else {
+        } catch (error) {
           navigateTo("invite-code.html");
         }
       }

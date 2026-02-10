@@ -495,9 +495,10 @@
         <div class="profile-sheet-subtitle" id="profileSubtitle">
           1st trial
         </div>
-        <div class="profile-sheet-subtitle" id="profileScore">
-          chemistry score 54
-        </div>
+      </div>
+
+      <div class="profile-sheet-subtitle" id="profileScore">
+        chemistry score 54
       </div>
 
       <div id="profileCards"></div>
@@ -508,10 +509,12 @@
     <script src="js/common.js"></script>
 
     <script type="module">
-      import { rtdb, db, ref, get, onValue, update } from "/js/firebase.js";
+      import { db } from "/js/firebase.js";
       import {
         doc,
         getDoc,
+        onSnapshot,
+        updateDoc,
       } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
       const userId = getFromLocal("user_id");
@@ -520,14 +523,16 @@
       const requestId = getFromLocal("match_request_id");
 
       let talkData = null;
+      let analysisScore = null;
       let currentRound = 1;
       let myChoice = null;
 
       /* ================= 초기화 ================= */
 
       window.onload = async () => {
-        if (!userId || !talkId || !partner || !requestId) {
+        if (!userId || !talkId || !partner) {
           console.error("❌ 필수 데이터 없음");
+          alert("invalid request");
           navigateTo("lounge.html");
           return;
         }
@@ -544,8 +549,13 @@
 
           talkData = talkSnap.data();
           currentRound = talkData.round || 1;
+          analysisScore = extractAnalysisScore(talkData);
 
           console.log("✅ talk_history 로드:", talkData);
+
+          if (analysisScore === null) {
+            waitForAnalysis();
+          }
 
           startChat();
         } catch (e) {
@@ -602,6 +612,7 @@
 
         const score = calculateScore();
         const rating = getScoreRating(score);
+        const scoreText = score === null ? "--" : score;
 
         const messages = document.getElementById("messages");
 
@@ -613,7 +624,9 @@
           <div class="coco-bubble" style="max-width: 80%; padding: 0;">
             <div class="chemistry-card" onclick="openAnalysisSheet()">
               <div class="chemistry-score-text">
-                chemistry score: <strong>${score}</strong> (${rating})
+                chemistry score:
+                <strong id="chemistryScoreValue">${scoreText}</strong>
+                (<span id="chemistryScoreRating">${rating}</span>)
               </div>
               <button class="view-details-btn">view details</button>
             </div>
@@ -649,11 +662,10 @@
         document.getElementById("inputArea").style.display = "none";
         document.getElementById("sendBtn").disabled = true;
 
-        // Firebase 업데이트
-        const requestRef = ref(rtdb, `match_requests/${requestId}`);
         const isInitiator = talkData.participants.user_a === userId;
+        const talkRef = doc(db, "talk_history", talkId);
 
-        await update(requestRef, {
+        await updateDoc(talkRef, {
           [isInitiator ? "initiator_response" : "receiver_response"]: choice,
         });
 
@@ -667,10 +679,10 @@
       /* ================= 상대방 응답 대기 ================= */
 
       function listenForPartnerResponse() {
-        const requestRef = ref(rtdb, `match_requests/${requestId}`);
+        const talkRef = doc(db, "talk_history", talkId);
 
-        onValue(requestRef, async (snap) => {
-          const data = snap.val();
+        onSnapshot(talkRef, async (snap) => {
+          const data = snap.data();
           if (!data) return;
 
           const isInitiator = talkData.participants.user_a === userId;
@@ -757,7 +769,8 @@
         const score = calculateScore();
         const rating = getScoreRating(score);
 
-        document.getElementById("sheetScore").textContent = score;
+        document.getElementById("sheetScore").textContent =
+          score === null ? "--" : score;
         document.getElementById("sheetRating").textContent = rating;
 
         openSheet("analysisSheet");
@@ -773,7 +786,7 @@
         ).textContent = `${getOrdinal(currentRound)} trial`;
         document.getElementById(
           "profileScore"
-        ).textContent = `chemistry score ${score}`;
+        ).textContent = `chemistry score ${score === null ? "--" : score}`;
 
         const cardsHtml = generateProfileCards();
         document.getElementById("profileCards").innerHTML = cardsHtml;
@@ -788,48 +801,35 @@
         const unlocked = currentRound;
         let html = "";
 
-        // 기본 정보 (항상 공개)
-        html += `
-          <div class="profile-info-card">
-            <div class="profile-info-label">${partner.age || "--"} years old</div>
-            <div class="profile-info-value">${partner.gender || "--"}</div>
-          </div>
-        `;
-
-        // Round 2+ 공개
-        if (unlocked >= 2) {
+        if (unlocked === 1) {
           html += `
+            <div class="profile-info-card">
+              <div class="profile-info-label">${partner.age || "--"} years old</div>
+              <div class="profile-info-value">${partner.gender || "--"}</div>
+            </div>
             <div class="profile-info-card">
               <div class="profile-info-label">${getPartnerName()}'s playlist</div>
               <div class="profile-info-value">→</div>
             </div>
           `;
-        } else {
-          html += `
-            <div class="profile-info-card locked">
-              <div class="profile-info-label">${getPartnerName()}'s playlist</div>
-              <div class="profile-info-value">→</div>
-            </div>
-          `;
-        }
-
-        // Round 3 공개 (더 많은 정보)
-        if (unlocked >= 3) {
+        } else if (unlocked === 2) {
           html += `
             <div class="profile-info-card">
               <div class="profile-info-label">Bio</div>
               <div class="profile-info-value">${partner.bio || "Not provided"}</div>
             </div>
-          `;
-        } else {
-          html += `
-            <div class="profile-info-card locked">
-              <div class="profile-info-label">Bio</div>
-              <div class="profile-info-value">hidden</div>
-            </div>
-            <div class="profile-info-card locked">
+            <div class="profile-info-card">
               <div class="profile-info-label">More info</div>
-              <div class="profile-info-value">hidden</div>
+              <div class="profile-info-value">${
+                partner.more_info || "Not provided"
+              }</div>
+            </div>
+          `;
+        } else if (unlocked >= 3) {
+          html += `
+            <div class="profile-info-card">
+              <div class="profile-info-label">Contact</div>
+              <div class="profile-info-value">${partner.phone || "--"}</div>
             </div>
           `;
         }
@@ -838,11 +838,7 @@
       }
 
       function generateUnlockText() {
-        const unlocked = currentRound;
-        if (unlocked >= 3) return "";
-
-        const nextRound = unlocked + 1;
-        return `extra information unlocks after the ${getOrdinal(nextRound)} chat`;
+        return "";
       }
 
       function getOrdinal(n) {
@@ -866,27 +862,65 @@
       /* ================= Score 계산 ================= */
 
       function calculateScore() {
-        const partnerId =
-          talkData.participants.user_a === userId
-            ? talkData.participants.user_b
-            : talkData.participants.user_a;
-
-        const userSel = talkData.selections[userId];
-        const partnerSel = talkData.selections[partnerId];
-
-        if (userSel === partnerSel) {
-          return 100;
-        } else {
-          return Math.floor(Math.random() * 30) + 50;
-        }
+        return analysisScore;
       }
 
       function getScoreRating(score) {
+        if (score === null) return "analyzing";
         if (score >= 90) return "excellent";
         if (score >= 75) return "great";
         if (score >= 60) return "good";
         if (score >= 50) return "fair";
         return "okay";
+      }
+
+      function extractAnalysisScore(data) {
+        const raw = data?.analysis?.chemistry_score;
+        if (typeof raw !== "number" || Number.isNaN(raw)) return null;
+        return Math.max(0, Math.min(100, Math.round(raw)));
+      }
+
+      async function waitForAnalysis(maxAttempts = 15, intervalMs = 1000) {
+        for (let i = 0; i < maxAttempts; i += 1) {
+          await sleep(intervalMs);
+          const talkRef = doc(db, "talk_history", talkId);
+          const snap = await getDoc(talkRef);
+          if (!snap.exists()) continue;
+
+          const fresh = snap.data();
+          const score = extractAnalysisScore(fresh);
+          if (score !== null) {
+            talkData = fresh;
+            analysisScore = score;
+            updateScoreUI();
+            return;
+          }
+        }
+        if (analysisScore === null) {
+          alert("analysis is taking longer than expected");
+        }
+      }
+
+      function updateScoreUI() {
+        const scoreText = analysisScore === null ? "--" : analysisScore;
+        const ratingText = getScoreRating(analysisScore);
+
+        const scoreEl = document.getElementById("chemistryScoreValue");
+        if (scoreEl) scoreEl.textContent = scoreText;
+
+        const ratingEl = document.getElementById("chemistryScoreRating");
+        if (ratingEl) ratingEl.textContent = ratingText;
+
+        const sheetScoreEl = document.getElementById("sheetScore");
+        if (sheetScoreEl) sheetScoreEl.textContent = scoreText;
+
+        const sheetRatingEl = document.getElementById("sheetRating");
+        if (sheetRatingEl) sheetRatingEl.textContent = ratingText;
+
+        const profileScoreEl = document.getElementById("profileScore");
+        if (profileScoreEl) {
+          profileScoreEl.textContent = `chemistry score ${scoreText}`;
+        }
       }
 
       /* ================= 유틸 ================= */

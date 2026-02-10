@@ -169,14 +169,20 @@
       async function finish() {
         if (selectedTracks.length < MIN) return;
         showLoading("saving...");
-        await apiCall("/users/playlist", "POST", { tracks: selectedTracks });
-        hideLoading();
-        
-        // 🔥 edit-profile에서 왔으면 다시 돌아가기
-        if (fromProfile) {
-          navigateTo("edit-profile.html");
-        } else {
-          navigateTo("lounge.html");
+        try {
+          await apiCall("/users/playlist", "POST", { tracks: selectedTracks });
+          hideLoading();
+
+          // 🔥 edit-profile에서 왔으면 다시 돌아가기
+          if (fromProfile) {
+            navigateTo("edit-profile.html");
+          } else {
+            navigateTo("lounge.html");
+          }
+        } catch (error) {
+          console.error("Failed to save playlist:", error);
+          hideLoading();
+          alert("failed to save playlist. please try again.");
         }
       }
 

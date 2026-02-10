@@ -126,7 +126,7 @@
     <script src="js/common.js"></script>
 
     <script type="module">
-      import { rtdb, ref, onValue, update, get } from "/js/firebase.js";
+      import { rtdb, ref, onValue, update, get, remove } from "/js/firebase.js";
 
       const userId = getFromLocal("user_id");
       if (!userId) {
@@ -141,10 +141,15 @@
       if (!mode || !requestId) {
         alert("invalid request");
         navigateTo("lounge.html");
+        return;
       }
 
-      const partner = getFromLocal("chat_partner");
-      const partnerName = `${partner.first_name || partner.firstName} ${partner.last_name || partner.lastName}`;
+      let partner = getFromLocal("chat_partner");
+      const getPartnerName = () => {
+        const partnerFirst = partner?.first_name || partner?.firstName || "";
+        const partnerLast = partner?.last_name || partner?.lastName || "";
+        return `${partnerFirst} ${partnerLast}`.trim() || "your match";
+      };
 
       /* ====================== 🔥 주제 설정 ====================== */
 
@@ -182,6 +187,13 @@
           const topic = matchRequest.topic || "food";
 
           console.log(`🎯 Match Request - Round ${round}: ${topic}`);
+
+          if (!partner && mode === "receiver" && matchRequest.initiator_profile) {
+            partner = matchRequest.initiator_profile;
+            saveToLocal("chat_partner", partner);
+          }
+
+          const partnerName = getPartnerName();
 
           // 🔥 라운드에 맞는 질문 표시
           const topicData = TOPICS[round];
@@ -241,7 +253,12 @@
 
         onValue(requestRef, (snapshot) => {
           const data = snapshot.val();
-          if (!data) return;
+          if (!data) {
+            clearInterval(timerInterval);
+            alert("the other person cancelled or the request timed out");
+            navigateTo("lounge.html");
+            return;
+          }
 
           if (data.status === "accepted") {
             clearInterval(timerInterval);
@@ -275,6 +292,7 @@
         await update(requestRef, {
           status: "rejected",
         });
+        await remove(requestRef);
         navigateTo("lounge.html");
       };
 
@@ -284,6 +302,7 @@
         await update(requestRef, {
           status: "timeout",
         });
+        await remove(requestRef);
         navigateTo("lounge.html");
       }
 
