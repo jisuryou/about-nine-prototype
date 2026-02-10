@@ -91,6 +91,10 @@ class ChemistryModel:
             print(f"⚠️ chemistry model not found at {path}; using fallback scoring")
             self._loaded = False
             self._version = "baseline"
+        except Exception as e:
+            print(f"⚠️ chemistry model load failed ({e}); using fallback scoring")
+            self._loaded = False
+            self._version = "baseline"
 
     def set_version(self, version: str):
         self._version = version

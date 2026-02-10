@@ -158,6 +158,7 @@ class AnalysisService:
                 model_path = f"gs://{bucket}/models/chemistry/latest.pkl"
             else:
                 model_path = "chemistry_model.pkl"
+        # load() will fall back to baseline if missing/unreachable
         self.model.load(model_path)
 
         self.rhythm = RhythmAnalyzer()
