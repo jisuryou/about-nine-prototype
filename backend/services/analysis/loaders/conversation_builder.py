@@ -84,3 +84,44 @@ def build_conversation(
         "call_id": call_id,
         "conversation": all_segments
     }
+
+
+class ConversationBuilder:
+    def build(
+        self,
+        call_id: str,
+        wav_items: List[Dict],
+        uid_mapping: Dict | None = None,
+        participants: List[str] | None = None,
+    ) -> Dict:
+        speaker_audio_map: Dict[str, str] = {}
+        speaker_wavs: Dict[str, str] = {}
+
+        for idx, item in enumerate(wav_items or []):
+            if not isinstance(item, dict):
+                continue
+            wav_path = item.get("wav_path")
+            if not wav_path:
+                continue
+
+            speaker_id = item.get("speaker_hint")
+            uid = item.get("uid")
+
+            if not speaker_id and uid_mapping and uid is not None:
+                speaker_id = uid_mapping.get(str(uid)) or uid_mapping.get(uid)
+
+            if not speaker_id and uid is not None:
+                speaker_id = f"uid_{uid}"
+
+            if not speaker_id and participants and idx < len(participants):
+                speaker_id = str(participants[idx])
+
+            if not speaker_id:
+                speaker_id = f"speaker_{idx + 1}"
+
+            speaker_audio_map[speaker_id] = wav_path
+            speaker_wavs[speaker_id] = wav_path
+
+        conv = build_conversation(call_id=call_id, speaker_audio_map=speaker_audio_map)
+        conv["speaker_wavs"] = speaker_wavs
+        return conv
