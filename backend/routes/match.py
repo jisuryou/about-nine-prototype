@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from backend.services.analysis_service import analyze_talk_pipeline
-from backend.services.match_service import recommend_for_user
+from backend.services.recommend_service import recommend_for_user
 
 match_bp = Blueprint("match", __name__, url_prefix="/api/match")
 

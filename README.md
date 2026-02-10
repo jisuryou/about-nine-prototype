@@ -19,7 +19,7 @@ source venv/bin/activate  # Mac/Linux
 
 ### 2. 패키지 설치
 \`\`\`bash
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 \`\`\`
 
 ### 3. 환경 변수 설정
