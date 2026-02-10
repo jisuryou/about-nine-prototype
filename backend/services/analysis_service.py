@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -144,13 +145,20 @@ class AnalysisService:
 
     def __init__(
         self,
-        chemistry_model_path: str = "chemistry_model.pkl",
+        chemistry_model_path: str = None,
     ):
         self.storage_loader = StorageLoader()
         self.audio_builder = AudioBuilder()
         self.conversation_builder = ConversationBuilder()
         self.model = ChemistryModel()
-        self.model.load(chemistry_model_path)
+        model_path = chemistry_model_path or os.getenv("CHEMISTRY_MODEL_PATH")
+        if not model_path:
+            bucket = os.getenv("FIREBASE_STORAGE_BUCKET")
+            if bucket:
+                model_path = f"gs://{bucket}/models/chemistry/latest.pkl"
+            else:
+                model_path = "chemistry_model.pkl"
+        self.model.load(model_path)
 
         self.rhythm = RhythmAnalyzer()
         self.discourse = DiscourseAnalyzer()

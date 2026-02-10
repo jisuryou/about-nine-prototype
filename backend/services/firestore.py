@@ -37,10 +37,8 @@ def get_firestore():
         cred = credentials.Certificate(str(path))
 
     else:
-        raise RuntimeError(
-            "Firebase credentials not configured. "
-            "Set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH"
-        )
+        # Fallback to Application Default Credentials (GCP environment)
+        cred = credentials.ApplicationDefault()
 
     try:
         firebase_admin.get_app()

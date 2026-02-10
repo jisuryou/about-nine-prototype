@@ -665,9 +665,17 @@
         const isInitiator = talkData.participants.user_a === userId;
         const talkRef = doc(db, "talk_history", talkId);
 
-        await updateDoc(talkRef, {
-          [isInitiator ? "initiator_response" : "receiver_response"]: choice,
-        });
+        try {
+          await updateDoc(talkRef, {
+            [isInitiator ? "initiator_response" : "receiver_response"]: choice,
+          });
+        } catch (error) {
+          console.error("Failed to submit response:", error);
+          alert("failed to submit response");
+          document.getElementById("inputArea").style.display = "flex";
+          document.getElementById("sendBtn").disabled = false;
+          return;
+        }
 
         // 대기 메시지
         await addCocoMessage("waiting for your match's response...", 300);
@@ -685,6 +693,8 @@
           const data = snap.data();
           if (!data) return;
 
+          await ensureLabel(data, talkRef);
+
           const isInitiator = talkData.participants.user_a === userId;
           const partnerResponse = isInitiator
             ? data.receiver_response
@@ -700,6 +710,21 @@
             }
           }
         });
+      }
+
+      async function ensureLabel(data, talkRef) {
+        if (data.label !== undefined && data.label !== null) return;
+
+        const a = data.initiator_response;
+        const b = data.receiver_response;
+        if (!a || !b) return;
+
+        const label = a === "go" && b === "go" ? 1 : 0;
+        try {
+          await updateDoc(talkRef, { label });
+        } catch (error) {
+          console.error("Failed to set label:", error);
+        }
       }
 
       /* ================= 둘 다 GO ================= */
