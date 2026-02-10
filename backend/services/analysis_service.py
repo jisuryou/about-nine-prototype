@@ -9,8 +9,6 @@ from backend.services.chemistry_model import ChemistryModel
 from backend.services.user_profile_service import update_user_profile
 
 from backend.services.analysis.models.schema import (
-    AnalysisResult,
-    AnalyzerOutputs,
     Conversation,
     ConversationTurn,
 )
@@ -252,7 +250,7 @@ class AnalysisService:
             talk_ref.update({"analysis_error": str(e), "analysis_failed_at": _now_ms()})
             return {"success": False, "message": "analyzer failed", "error": str(e), "talk_id": talk_id}
 
-        feats: AnalyzerOutputs = {
+        feats: Dict[str, float] = {
             # keep keys stable (your earlier convention)
             "turn_taking": float(rhythm_out["scores"].get("rhythm_synchrony", 0)),
             "flow_continuity": float(discourse_out["scores"].get("topic_continuity", 0)),
@@ -269,7 +267,7 @@ class AnalysisService:
             talk_ref.update({"analysis_error": f"chemistry_model: {e}", "analysis_failed_at": _now_ms()})
             return {"success": False, "message": "chemistry model failed", "error": str(e), "talk_id": talk_id}
 
-        analysis: AnalysisResult = {
+        analysis: Dict[str, Any] = {
             "features": feats,
             "chemistry_score": chemistry_score,
             "details": {

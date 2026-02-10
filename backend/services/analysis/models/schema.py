@@ -3,7 +3,7 @@ from typing import List
 
 
 @dataclass
-class Utterance:
+class ConversationTurn:
     speaker: str
     start: float
     end: float
@@ -13,4 +13,4 @@ class Utterance:
 @dataclass
 class Conversation:
     call_id: str
-    conversation: List[Utterance]
+    conversation: List[ConversationTurn]
