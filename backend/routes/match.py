@@ -2,10 +2,10 @@ from flask import Blueprint, request, jsonify
 from backend.services.analysis_service import analyze_talk_pipeline
 from backend.services.match_service import recommend_for_user
 
-bp = Blueprint("match", __name__, url_prefix="/api/match")
+match_bp = Blueprint("match", __name__, url_prefix="/api/match")
 
 
-@bp.route("/analyze-talk", methods=["POST"])
+@match_bp.route("/analyze-talk", methods=["POST"])
 def analyze_talk():
     data = request.get_json()
     talk_id = data.get("talk_id")
@@ -17,7 +17,7 @@ def analyze_talk():
 
     return jsonify(success=True)
 
-@bp.route("/recommend", methods=["GET"])
+@match_bp.route("/recommend", methods=["GET"])
 def recommend():
     uid = request.headers.get("X-User-ID")
     users = recommend_for_user(uid)

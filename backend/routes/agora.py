@@ -9,10 +9,10 @@ from backend.services.agora_service import (
 from firebase_admin import db
 import time
 
-bp = Blueprint("agora", __name__, url_prefix="/api/agora")
+agora_bp = Blueprint("agora", __name__, url_prefix="/api/agora")
 
 
-@bp.route("/auto-start-recording", methods=["POST"])
+@agora_bp.route("/auto-start-recording", methods=["POST"])
 def auto_start_recording():
     """양쪽이 ready되면 자동으로 녹화 시작"""
     try:
@@ -80,7 +80,7 @@ def auto_start_recording():
         return jsonify(success=False, message=str(e)), 500
 
 
-@bp.route("/auto-stop-recording", methods=["POST"])
+@agora_bp.route("/auto-stop-recording", methods=["POST"])
 def auto_stop_recording():
     """통화 종료 시 자동으로 녹화 종료 (중복 방지 강화)"""
     try:
@@ -157,7 +157,7 @@ def auto_stop_recording():
 # =========================
 # 수동 API (디버깅용)
 # =========================
-@bp.route("/acquire", methods=["POST"])
+@agora_bp.route("/acquire", methods=["POST"])
 def acquire():
     """수동 Acquire (디버깅용)"""
     data = request.get_json()
@@ -170,7 +170,7 @@ def acquire():
     return jsonify(result)
 
 
-@bp.route("/start", methods=["POST"])
+@agora_bp.route("/start", methods=["POST"])
 def start():
     """수동 Start (디버깅용)"""
     data = request.get_json()
@@ -184,7 +184,7 @@ def start():
     return jsonify(result)
 
 
-@bp.route("/stop", methods=["POST"])
+@agora_bp.route("/stop", methods=["POST"])
 def stop():
     """수동 Stop (디버깅용)"""
     data = request.get_json()
@@ -199,7 +199,7 @@ def stop():
     return jsonify(result)
 
 
-@bp.route("/query", methods=["POST"])
+@agora_bp.route("/query", methods=["POST"])
 def query():
     """녹화 상태 조회"""
     data = request.get_json()
