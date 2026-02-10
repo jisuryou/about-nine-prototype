@@ -6,6 +6,7 @@ from backend.config import (
     FIREBASE_SERVICE_ACCOUNT_JSON,
     FIREBASE_SERVICE_ACCOUNT_PATH,
     FIREBASE_DB_URL,
+    FIREBASE_STORAGE_BUCKET,
 )
 
 _app = None
@@ -47,6 +48,8 @@ def get_firestore():
         options = {}
         if FIREBASE_DB_URL:
             options['databaseURL'] = FIREBASE_DB_URL
+        if FIREBASE_STORAGE_BUCKET:
+            options['storageBucket'] = FIREBASE_STORAGE_BUCKET
         
         _app = initialize_app(cred, options)
 

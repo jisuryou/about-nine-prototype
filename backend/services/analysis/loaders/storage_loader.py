@@ -1,12 +1,31 @@
 import os
 from firebase_admin import storage
+from backend.config import FIREBASE_STORAGE_BUCKET
+from backend.services.firestore import get_firestore
 
-bucket = storage.bucket()
+_bucket = None
+
+
+def get_bucket():
+    global _bucket
+    if _bucket:
+        return _bucket
+    if not FIREBASE_STORAGE_BUCKET:
+        raise RuntimeError(
+            "FIREBASE_STORAGE_BUCKET is not set. "
+            "Set it to your Firebase Storage bucket name "
+            "(e.g. 'your-project-id.appspot.com')."
+        )
+    # Ensure Firebase app is initialized before accessing storage
+    get_firestore()
+    _bucket = storage.bucket()
+    return _bucket
 
 
 def download_prefix(prefix: str, local_dir: str):
     os.makedirs(local_dir, exist_ok=True)
 
+    bucket = get_bucket()
     blobs = bucket.list_blobs(prefix=prefix)
 
     local_files = []
