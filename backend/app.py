@@ -37,14 +37,18 @@ from backend.routes.auth import auth_bp
 from backend.routes.users import users_bp
 from backend.routes.music import music_bp
 from backend.routes.onboarding import onboarding_bp
+from backend.routes.agora import agora_bp
+from backend.routes.talks import talks_bp
+from backend.routes.match import match_bp
 from backend.routes.debug import debug_bp
-from backend.routes.agora import bp as agora_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(music_bp)
 app.register_blueprint(onboarding_bp)
 app.register_blueprint(agora_bp)
+app.register_blueprint(talks_bp)
+app.register_blueprint(match_bp)
 
 if DEBUG:
     app.register_blueprint(debug_bp)

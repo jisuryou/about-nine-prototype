@@ -1,0 +1,904 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chemistry Score</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="js/firebase.js"></script>
+
+    <style>
+      /* 챗 컨테이너 */
+      .result-chat-container {
+        width: 100%;
+        max-width: 480px;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        font-family: "Merriweather", serif;
+        overflow: hidden;
+        background: linear-gradient(180deg, #4a4a4a 0%, #1a1a1a 100%);
+      }
+
+      /* 헤더 */
+      .result-header {
+        text-align: center;
+        padding: 30px 20px 20px;
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      /* 챗 메시지 영역 */
+      .result-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0 20px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      /* 메시지 (COCO) */
+      .coco-message {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        opacity: 0;
+        animation: fadeIn 0.3s forwards;
+      }
+
+      @keyframes fadeIn {
+        to {
+          opacity: 1;
+        }
+      }
+
+      .coco-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #c471ed 0%, #f64f59 100%);
+        flex-shrink: 0;
+      }
+
+      .coco-bubble {
+        background: #525252;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 10px 16px;
+        border-radius: 22px;
+        max-width: 70%;
+        line-height: 1.5;
+        font-size: 14px;
+        color: var(--text-primary);
+      }
+
+      /* Chemistry Score 카드 */
+      .chemistry-card {
+        background: var(--bg-card);
+        border-radius: 20px;
+        padding: 20px;
+        margin: 10px 0;
+        cursor: pointer;
+        transition: transform 0.2s;
+      }
+
+      .chemistry-card:active {
+        transform: scale(0.98);
+      }
+
+      .chemistry-score-text {
+        font-size: 15px;
+        margin-bottom: 12px;
+        color: var(--text-primary);
+      }
+
+      .chemistry-score-text strong {
+        font-weight: 700;
+      }
+
+      .view-details-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        padding: 10px 20px;
+        border-radius: 20px;
+        color: var(--text-primary);
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        width: auto;
+      }
+
+      /* 입력 영역 (드롭다운 + 전송) */
+      .result-input-area {
+        padding: 16px 20px 30px;
+        background: transparent;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .choice-dropdown {
+        flex: 1;
+        background: #3a3a3a;
+        border: none;
+        border-radius: 28px;
+        padding: 14px 20px;
+        color: white;
+        font-size: 16px;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 20px center;
+        padding-right: 50px;
+        cursor: pointer;
+      }
+
+      .send-btn {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #5b7fff, #7b5bff);
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: transform 0.2s;
+      }
+
+      .send-btn:active {
+        transform: scale(0.95);
+      }
+
+      .send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .send-btn::before {
+        content: "";
+        width: 24px;
+        height: 24px;
+        background-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 12L19 12M19 12L12 5M19 12L12 19' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+      }
+
+      /* Waiting 메시지 */
+      .waiting-message {
+        text-align: center;
+        padding: 12px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        font-style: italic;
+      }
+
+      /* 프로필 카드 */
+      .profile-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 20px;
+        padding: 20px;
+        margin: 10px 0;
+        cursor: pointer;
+      }
+
+      .profile-name {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+
+      /* Go to Lounge 버튼 */
+      .lounge-button-container {
+        padding: 16px 20px 30px;
+        background: transparent;
+      }
+
+      .lounge-btn {
+        width: 100%;
+        padding: 16px;
+        border-radius: 25px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      /* 바텀시트 오버레이 */
+      .bottom-sheet-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s;
+        z-index: 999;
+      }
+
+      .bottom-sheet-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      /* 분석 바텀시트 */
+      .analysis-bottom-sheet {
+        position: fixed;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%) translateY(100%);
+        width: 100%;
+        max-width: 480px;
+        height: 70vh;
+        background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+        border-radius: 20px 20px 0 0;
+        padding: 20px;
+        transition: transform 0.3s;
+        z-index: 1000;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .analysis-bottom-sheet.active {
+        transform: translateX(-50%) translateY(0);
+      }
+
+      .sheet-handle {
+        width: 40px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 2px;
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      /* 원형 그래픽 */
+      .score-circle-container {
+        position: relative;
+        width: 280px;
+        height: 280px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 40px;
+      }
+
+      .score-circle-bg {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(255, 255, 255, 0.1) 0%,
+          transparent 70%
+        );
+      }
+
+      .score-circle-pattern {
+        position: absolute;
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+      }
+
+      .score-circle-pattern svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      .score-circle-text {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+      }
+
+      .score-rating {
+        font-size: 48px;
+        font-weight: 300;
+        color: white;
+        margin-bottom: 8px;
+        font-family: "Merriweather", serif;
+      }
+
+      .score-number {
+        font-size: 64px;
+        font-weight: 700;
+        color: white;
+      }
+
+      /* 키워드 영역 */
+      .keywords-area {
+        width: 100%;
+        text-align: center;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.7);
+        line-height: 2;
+        word-spacing: 0.5em;
+      }
+
+      /* 프로필 바텀시트 (전체 화면) */
+      .profile-bottom-sheet {
+        position: fixed;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%) translateY(100%);
+        width: 100%;
+        max-width: 480px;
+        height: 100vh;
+        background: #1a1a1a;
+        transition: transform 0.3s;
+        z-index: 1000;
+        overflow-y: auto;
+        padding: 40px 20px 30px;
+      }
+
+      .profile-bottom-sheet.active {
+        transform: translateX(-50%) translateY(0);
+      }
+
+      .profile-sheet-header {
+        margin-bottom: 30px;
+      }
+
+      .profile-sheet-name {
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 10px;
+        font-family: "Merriweather", serif;
+      }
+
+      .profile-sheet-subtitle {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-bottom: 5px;
+      }
+
+      .profile-info-card {
+        background: #2a2a2a;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 16px;
+        padding: 18px 20px;
+        margin-bottom: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .profile-info-card.locked {
+        filter: blur(6px);
+        pointer-events: none;
+      }
+
+      .profile-info-label {
+        font-size: 14px;
+        color: var(--text-secondary);
+      }
+
+      .profile-info-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: white;
+      }
+
+      .unlock-text {
+        text-align: center;
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-top: 30px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="result-chat-container">
+      <!-- 헤더 -->
+      <div class="result-header">COCO</div>
+
+      <!-- 메시지 영역 -->
+      <div class="result-messages" id="messages"></div>
+
+      <!-- 입력 영역 (드롭다운 + 전송) -->
+      <div class="result-input-area" id="inputArea" style="display: none">
+        <select class="choice-dropdown" id="choiceSelect">
+          <option value="">go</option>
+          <option value="go">go</option>
+          <option value="no">no</option>
+        </select>
+        <button class="send-btn" id="sendBtn" onclick="submitChoice()"></button>
+      </div>
+
+      <!-- Go to Lounge 버튼 -->
+      <div
+        class="lounge-button-container"
+        id="loungeContainer"
+        style="display: none"
+      >
+        <button class="lounge-btn" onclick="navigateTo('lounge.html')">
+          go to lounge
+        </button>
+      </div>
+    </div>
+
+    <!-- 바텀시트 오버레이 -->
+    <div
+      class="bottom-sheet-overlay"
+      id="sheetOverlay"
+      onclick="closeSheet()"
+    ></div>
+
+    <!-- 분석 상세 바텀시트 -->
+    <div class="analysis-bottom-sheet" id="analysisSheet">
+      <div class="sheet-handle"></div>
+
+      <!-- 원형 그래픽 -->
+      <div class="score-circle-container">
+        <div class="score-circle-bg"></div>
+        <div class="score-circle-pattern">
+          <svg viewBox="0 0 200 200">
+            <circle
+              cx="100"
+              cy="100"
+              r="80"
+              fill="none"
+              stroke="rgba(255,255,255,0.2)"
+              stroke-width="1"
+            />
+            <circle
+              cx="100"
+              cy="100"
+              r="60"
+              fill="none"
+              stroke="rgba(255,255,255,0.15)"
+              stroke-width="1"
+            />
+            <circle
+              cx="100"
+              cy="100"
+              r="40"
+              fill="none"
+              stroke="rgba(255,255,255,0.1)"
+              stroke-width="1"
+            />
+          </svg>
+        </div>
+        <div class="score-circle-text">
+          <div class="score-rating" id="sheetRating">fair</div>
+          <div class="score-number" id="sheetScore">80</div>
+        </div>
+      </div>
+
+      <!-- 키워드 -->
+      <div class="keywords-area" id="sheetKeywords">
+        empathic words empathic words empathic empathic words empathic words
+        empathic empathic words empathic words empathic empathic words empathic
+        words empathic empathic words empathic words empathic
+      </div>
+    </div>
+
+    <!-- 프로필 바텀시트 -->
+    <div class="profile-bottom-sheet" id="profileSheet">
+      <div class="profile-sheet-header">
+        <div class="profile-sheet-name" id="profileName">tommy hills</div>
+        <div class="profile-sheet-subtitle" id="profileSubtitle">
+          1st trial
+        </div>
+        <div class="profile-sheet-subtitle" id="profileScore">
+          chemistry score 54
+        </div>
+      </div>
+
+      <div id="profileCards"></div>
+
+      <div class="unlock-text" id="unlockText"></div>
+    </div>
+
+    <script src="js/common.js"></script>
+
+    <script type="module">
+      import { rtdb, db, ref, get, onValue, update } from "/js/firebase.js";
+      import {
+        doc,
+        getDoc,
+      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+      const userId = getFromLocal("user_id");
+      const talkId = getFromLocal("current_talk_id");
+      const partner = getFromLocal("chat_partner");
+      const requestId = getFromLocal("match_request_id");
+
+      let talkData = null;
+      let currentRound = 1;
+      let myChoice = null;
+
+      /* ================= 초기화 ================= */
+
+      window.onload = async () => {
+        if (!userId || !talkId || !partner || !requestId) {
+          console.error("❌ 필수 데이터 없음");
+          navigateTo("lounge.html");
+          return;
+        }
+
+        try {
+          const talkRef = doc(db, "talk_history", talkId);
+          const talkSnap = await getDoc(talkRef);
+
+          if (!talkSnap.exists()) {
+            console.error("❌ talk_history 없음");
+            navigateTo("lounge.html");
+            return;
+          }
+
+          talkData = talkSnap.data();
+          currentRound = talkData.round || 1;
+
+          console.log("✅ talk_history 로드:", talkData);
+
+          startChat();
+        } catch (e) {
+          console.error("❌ 초기화 실패:", e);
+          navigateTo("lounge.html");
+        }
+      };
+
+      /* ================= 챗 진행 ================= */
+
+      async function startChat() {
+        await addCocoMessage("yes", 500);
+
+        const partnerName = getPartnerName();
+        await addCocoMessage(
+          `here's your chemistry score with ${partnerName}`,
+          1000
+        );
+
+        await addScoreCard(1500);
+
+        await addCocoMessage("go or no?", 2000);
+
+        showInputArea(2500);
+      }
+
+      function getPartnerName() {
+        const first = partner?.firstName || partner?.first_name || "";
+        const last = partner?.lastName || partner?.last_name || "";
+        return `${first} ${last}`.trim() || "your match";
+      }
+
+      /* ================= 메시지 추가 ================= */
+
+      async function addCocoMessage(text, delay = 0) {
+        await sleep(delay);
+
+        const messages = document.getElementById("messages");
+
+        const messageDiv = document.createElement("div");
+        messageDiv.className = "coco-message";
+
+        messageDiv.innerHTML = `
+          <div class="coco-avatar"></div>
+          <div class="coco-bubble">${text}</div>
+        `;
+
+        messages.appendChild(messageDiv);
+        scrollToBottom();
+      }
+
+      async function addScoreCard(delay = 0) {
+        await sleep(delay);
+
+        const score = calculateScore();
+        const rating = getScoreRating(score);
+
+        const messages = document.getElementById("messages");
+
+        const cardDiv = document.createElement("div");
+        cardDiv.className = "coco-message";
+
+        cardDiv.innerHTML = `
+          <div class="coco-avatar"></div>
+          <div class="coco-bubble" style="max-width: 80%; padding: 0;">
+            <div class="chemistry-card" onclick="openAnalysisSheet()">
+              <div class="chemistry-score-text">
+                chemistry score: <strong>${score}</strong> (${rating})
+              </div>
+              <button class="view-details-btn">view details</button>
+            </div>
+          </div>
+        `;
+
+        messages.appendChild(cardDiv);
+        scrollToBottom();
+      }
+
+      /* ================= 입력 영역 표시 ================= */
+
+      async function showInputArea(delay = 0) {
+        await sleep(delay);
+        document.getElementById("inputArea").style.display = "flex";
+      }
+
+      /* ================= 선택 제출 ================= */
+
+      window.submitChoice = async () => {
+        const select = document.getElementById("choiceSelect");
+        const choice = select.value;
+
+        if (!choice) {
+          alert("Please select go or no");
+          return;
+        }
+
+        myChoice = choice;
+        console.log(`✅ 선택: ${choice}`);
+
+        // 입력 영역 숨기기
+        document.getElementById("inputArea").style.display = "none";
+        document.getElementById("sendBtn").disabled = true;
+
+        // Firebase 업데이트
+        const requestRef = ref(rtdb, `match_requests/${requestId}`);
+        const isInitiator = talkData.participants.user_a === userId;
+
+        await update(requestRef, {
+          [isInitiator ? "initiator_response" : "receiver_response"]: choice,
+        });
+
+        // 대기 메시지
+        await addCocoMessage("waiting for your match's response...", 300);
+
+        // 상대방 응답 리스너
+        listenForPartnerResponse();
+      };
+
+      /* ================= 상대방 응답 대기 ================= */
+
+      function listenForPartnerResponse() {
+        const requestRef = ref(rtdb, `match_requests/${requestId}`);
+
+        onValue(requestRef, async (snap) => {
+          const data = snap.val();
+          if (!data) return;
+
+          const isInitiator = talkData.participants.user_a === userId;
+          const partnerResponse = isInitiator
+            ? data.receiver_response
+            : data.initiator_response;
+
+          if (partnerResponse) {
+            console.log(`✅ 상대방 응답: ${partnerResponse}`);
+
+            if (myChoice === "go" && partnerResponse === "go") {
+              await handleBothGo();
+            } else {
+              await handleSomeoneNo(partnerResponse);
+            }
+          }
+        });
+      }
+
+      /* ================= 둘 다 GO ================= */
+
+      async function handleBothGo() {
+        await addCocoMessage("alright, this is the profile", 500);
+        await addCocoMessage(
+          `this might ease a bit of your curiosity about ${getPartnerName()}`,
+          1000
+        );
+
+        await addProfileCard(1500);
+
+        showLoungeButton(2000);
+      }
+
+      async function addProfileCard(delay = 0) {
+        await sleep(delay);
+
+        const messages = document.getElementById("messages");
+
+        const cardDiv = document.createElement("div");
+        cardDiv.className = "coco-message";
+
+        cardDiv.innerHTML = `
+          <div class="coco-avatar"></div>
+          <div class="coco-bubble" style="max-width: 80%; padding: 0;">
+            <div class="profile-card" onclick="openProfileSheet()">
+              <div class="profile-name">${getPartnerName()}</div>
+              <button class="view-details-btn">view profile</button>
+            </div>
+          </div>
+        `;
+
+        messages.appendChild(cardDiv);
+        scrollToBottom();
+      }
+
+      /* ================= 한 명이라도 NO ================= */
+
+      async function handleSomeoneNo(partnerResponse) {
+        if (partnerResponse === "no") {
+          await addCocoMessage(
+            `sorry, ${getPartnerName()} decided not to continue`,
+            500
+          );
+        } else {
+          await addCocoMessage(
+            "that's okay, there are more people waiting for you",
+            500
+          );
+        }
+
+        showLoungeButton(1000);
+      }
+
+      /* ================= Go to Lounge 버튼 ================= */
+
+      async function showLoungeButton(delay = 0) {
+        await sleep(delay);
+        document.getElementById("loungeContainer").style.display = "block";
+      }
+
+      /* ================= 바텀시트 ================= */
+
+      window.openAnalysisSheet = () => {
+        const score = calculateScore();
+        const rating = getScoreRating(score);
+
+        document.getElementById("sheetScore").textContent = score;
+        document.getElementById("sheetRating").textContent = rating;
+
+        openSheet("analysisSheet");
+      };
+
+      window.openProfileSheet = () => {
+        const partnerName = getPartnerName();
+        const score = calculateScore();
+
+        document.getElementById("profileName").textContent = partnerName;
+        document.getElementById(
+          "profileSubtitle"
+        ).textContent = `${getOrdinal(currentRound)} trial`;
+        document.getElementById(
+          "profileScore"
+        ).textContent = `chemistry score ${score}`;
+
+        const cardsHtml = generateProfileCards();
+        document.getElementById("profileCards").innerHTML = cardsHtml;
+
+        const unlockHtml = generateUnlockText();
+        document.getElementById("unlockText").innerHTML = unlockHtml;
+
+        openSheet("profileSheet");
+      };
+
+      function generateProfileCards() {
+        const unlocked = currentRound;
+        let html = "";
+
+        // 기본 정보 (항상 공개)
+        html += `
+          <div class="profile-info-card">
+            <div class="profile-info-label">${partner.age || "--"} years old</div>
+            <div class="profile-info-value">${partner.gender || "--"}</div>
+          </div>
+        `;
+
+        // Round 2+ 공개
+        if (unlocked >= 2) {
+          html += `
+            <div class="profile-info-card">
+              <div class="profile-info-label">${getPartnerName()}'s playlist</div>
+              <div class="profile-info-value">→</div>
+            </div>
+          `;
+        } else {
+          html += `
+            <div class="profile-info-card locked">
+              <div class="profile-info-label">${getPartnerName()}'s playlist</div>
+              <div class="profile-info-value">→</div>
+            </div>
+          `;
+        }
+
+        // Round 3 공개 (더 많은 정보)
+        if (unlocked >= 3) {
+          html += `
+            <div class="profile-info-card">
+              <div class="profile-info-label">Bio</div>
+              <div class="profile-info-value">${partner.bio || "Not provided"}</div>
+            </div>
+          `;
+        } else {
+          html += `
+            <div class="profile-info-card locked">
+              <div class="profile-info-label">Bio</div>
+              <div class="profile-info-value">hidden</div>
+            </div>
+            <div class="profile-info-card locked">
+              <div class="profile-info-label">More info</div>
+              <div class="profile-info-value">hidden</div>
+            </div>
+          `;
+        }
+
+        return html;
+      }
+
+      function generateUnlockText() {
+        const unlocked = currentRound;
+        if (unlocked >= 3) return "";
+
+        const nextRound = unlocked + 1;
+        return `extra information unlocks after the ${getOrdinal(nextRound)} chat`;
+      }
+
+      function getOrdinal(n) {
+        if (n === 1) return "1st";
+        if (n === 2) return "2nd";
+        if (n === 3) return "3rd";
+        return `${n}th`;
+      }
+
+      function openSheet(sheetId) {
+        document.getElementById("sheetOverlay").classList.add("active");
+        document.getElementById(sheetId).classList.add("active");
+      }
+
+      window.closeSheet = () => {
+        document.getElementById("sheetOverlay").classList.remove("active");
+        document.getElementById("analysisSheet").classList.remove("active");
+        document.getElementById("profileSheet").classList.remove("active");
+      };
+
+      /* ================= Score 계산 ================= */
+
+      function calculateScore() {
+        const partnerId =
+          talkData.participants.user_a === userId
+            ? talkData.participants.user_b
+            : talkData.participants.user_a;
+
+        const userSel = talkData.selections[userId];
+        const partnerSel = talkData.selections[partnerId];
+
+        if (userSel === partnerSel) {
+          return 100;
+        } else {
+          return Math.floor(Math.random() * 30) + 50;
+        }
+      }
+
+      function getScoreRating(score) {
+        if (score >= 90) return "excellent";
+        if (score >= 75) return "great";
+        if (score >= 60) return "good";
+        if (score >= 50) return "fair";
+        return "okay";
+      }
+
+      /* ================= 유틸 ================= */
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function scrollToBottom() {
+        const messages = document.getElementById("messages");
+        messages.scrollTop = messages.scrollHeight;
+      }
+    </script>
+  </body>
+</html>

@@ -30,19 +30,6 @@
         font-size: 14px;
       }
 
-      .match-badge {
-        background: var(--accent-yellow);
-        color: black;
-        padding: 6px 12px;
-        border-radius: 12px;
-        font-size: 13px;
-        font-weight: 600;
-        position: absolute;
-        right: 120px;
-        top: 50%;
-        transform: translateY(-50%);
-      }
-
       .subtitle-text {
         text-align: center;
         color: var(--text-secondary);
@@ -279,18 +266,14 @@
         console.log("👥 Users data:", res.users);
 
         users = res.users || [];
-        renderUsers(users, "userList");
+        renderUsers(users, "userList", "lounge");
       }
 
       /* ====================== AI 추천 ====================== */
 
-      function buildAIMatch() {
-        aiUsers = [...users]
-          .sort(() => Math.random() - 0.5)
-          .slice(0, 3)
-          .map((u) => ({ ...u, score: 70 + Math.floor(Math.random() * 30) }));
-
-        renderUsers(aiUsers, "aiUserList", true);
+      async function buildAIMatch() {
+        const res = await apiCall("/match/recommend");
+        renderUsers(res.users, "aiUserList", "ai");
       }
 
       /* ====================== 🔥 온라인 상태 확인 ====================== */
@@ -302,7 +285,7 @@
 
       /* ====================== 🔥 렌더 (정렬 + 비활성화) ====================== */
 
-      function renderUsers(list, containerId, showScore = false) {
+      function renderUsers(list, containerId, mode = "lounge") {
         const el = document.getElementById(containerId);
 
         if (!list.length) {
@@ -315,17 +298,15 @@
           return;
         }
 
-        // ✅ 유저가 있을 때만 안내 텍스트 표시
-        const isAiMatch = containerId === "aiUserList";
-        const subtitleText = isAiMatch
+        const isAi = mode === "ai";
+
+        const subtitleText = isAi
           ? "our recommended matches"
           : "pick whoever feels right";
 
-        // 🔥 온라인 유저 먼저, 오프라인 유저 나중에 정렬
         const sortedList = [...list].sort((a, b) => {
           const aOnline = isOnline(a.id);
           const bOnline = isOnline(b.id);
-
           if (aOnline && !bOnline) return -1;
           if (!aOnline && bOnline) return 1;
           return 0;
@@ -336,54 +317,60 @@
             const online = isOnline(u.id);
 
             return `
-            <div class="user-card-wrapper ${online ? "" : "offline"}">
-              <div class="card" data-id="${u.id}" style="cursor: pointer; padding-right: ${showScore ? "140px" : "120px"};">
-                <div style="flex: 1;">
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <span style="font-size: 16px; font-weight: 600;">${u.first_name || u.firstName} ${u.last_name || u.lastName}</span>
-                    <span class="status-dot ${online ? "online" : "offline"}" data-id="${u.id}"></span>
-                  </div>
-                  <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
-                    check out ${u.first_name || u.firstName}'s playlist
-                  </div>
-                </div>
-              </div>
-              ${showScore ? `<div class="match-badge">${u.score}%</div>` : ""}
-              <button class="primary user-card-button" data-user-id="${u.id}" ${online ? "" : "disabled"}>
-                start talk
-              </button>
+      <div class="user-card-wrapper ${online ? "" : "offline"}">
+        <div 
+          class="card"
+          ${!isAi ? `data-id="${u.id}" style="cursor:pointer; padding-right:120px;"` : `style="padding-right:120px;"`}
+        >
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:16px;font-weight:600;">
+                ${u.first_name || u.firstName} ${u.last_name || u.lastName}
+              </span>
+              <span class="status-dot ${online ? "online" : "offline"}"></span>
             </div>
-          `;
+
+            ${
+              !isAi
+                ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">
+                     check out ${u.first_name || u.firstName}'s playlist
+                   </div>`
+                : ""
+            }
+          </div>
+        </div>
+
+        <button class="primary user-card-button" data-user-id="${u.id}" ${
+          online ? "" : "disabled"
+        }>
+          start talk
+        </button>
+      </div>
+    `;
           })
           .join("");
 
-        // ✅ 안내 텍스트 + 유저 카드
         el.innerHTML = `
     <div class="subtitle-text">${subtitleText}</div>
     ${cardsHtml}
   `;
 
-        // 카드 클릭으로 플레이리스트 열기
-        el.querySelectorAll(".card").forEach((card) => {
-          card.onclick = (e) => {
-            if (e.target.tagName === "BUTTON") return;
-            const id = card.dataset.id;
-            const user = sortedList.find((x) => x.id === id);
-            openPlaylist(user);
-          };
-        });
+        // 🔥 lounge에서만 playlist 클릭 허용
+        if (!isAi) {
+          el.querySelectorAll(".card").forEach((card) => {
+            card.onclick = (e) => {
+              const id = card.dataset.id;
+              const user = sortedList.find((x) => x.id === id);
+              openPlaylist(user);
+            };
+          });
+        }
 
-        // 버튼 클릭으로 대화 시작 (온라인인 경우만)
+        // start talk 버튼
         el.querySelectorAll(".user-card-button").forEach((btn) => {
           btn.onclick = async (e) => {
-            e.stopPropagation();
-
-            if (btn.disabled) return;
-
             const id = btn.dataset.userId;
             const user = sortedList.find((x) => x.id === id);
-
-            // 🔥 매칭 요청 생성
             await startMatchRequest(user);
           };
         });
@@ -398,7 +385,7 @@
           showLoading("preparing...");
 
           // 🔥 Backend API로 round 계산 (양쪽 talk_history 확인)
-          const roundRes = await apiCall("/users/calculate-round", "POST", {
+          const roundRes = await apiCall("/talks/calculate-round", "POST", {
             partner_id: partner.id,
           });
 
@@ -411,12 +398,10 @@
 
           const round = roundRes.round;
           const topic = roundRes.topic;
-          const question = roundRes.question;  // 🔥 Backend가 선택한 질문
-          const options = roundRes.options;    // 🔥 Backend가 선택한 옵션
+          const question = roundRes.question; // 🔥 Backend가 선택한 질문
+          const options = roundRes.options; // 🔥 Backend가 선택한 옵션
 
-          console.log(
-            `🎯 Backend calculated - Round ${round}: ${topic}`,
-          );
+          console.log(`🎯 Backend calculated - Round ${round}: ${topic}`);
           if (question) {
             console.log(`   Question: ${question}`);
             console.log(`   Options:`, options);
@@ -489,13 +474,13 @@
             : "ai";
 
           if (currentTab === "lounge" && users.length > 0) {
-            renderUsers(users, "userList");
+            renderUsers(users, "userList", "lounge");
           } else if (
             currentTab === "ai" &&
             aiUsers.length > 0 &&
             isAIMatchTime()
           ) {
-            renderUsers(aiUsers, "aiUserList", true);
+            renderUsers(aiUsers, "aiUserList", "ai");
           }
         });
       }

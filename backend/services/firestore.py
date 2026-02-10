@@ -41,7 +41,6 @@ def get_firestore():
             "Set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH"
         )
 
-    # 🔥 공식 방식
     try:
         firebase_admin.get_app()
     except ValueError:

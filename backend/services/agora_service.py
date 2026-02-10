@@ -168,9 +168,7 @@ def stop_recording(channel: str, resource_id: str, sid: str):
             print(f"📦 uploadingStatus: {uploading_status}")
             if uploading_status == "backuped":
                 print(f"⚠️ Firebase Storage 업로드 실패!")
-                print(f"   Private Key 줄바꿈 개수: {PRIVATE_KEY.count(chr(10))}")
                 print(f"   Bucket: {BUCKET}")
-                print(f"   Email: {CLIENT_EMAIL}")
             elif uploading_status == "uploaded":
                 print(f"✅ Firebase Storage 업로드 성공!")
             
