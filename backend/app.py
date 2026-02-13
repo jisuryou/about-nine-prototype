@@ -6,9 +6,6 @@ import os
 from backend.config import SECRET_KEY, CORS_ORIGINS, DEBUG
 from backend.services.firestore import get_firestore
 
-# Firestore 초기화
-get_firestore()
-
 # =========================
 # App init
 # =========================
@@ -98,5 +95,9 @@ def index():
 # =========================
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "5001"))
+    port_env = os.environ.get("PORT")
+    if port_env:
+        port = int(port_env)
+    else:
+        port = 5001 if DEBUG else 10000
     app.run(host="0.0.0.0", port=port, debug=DEBUG)
