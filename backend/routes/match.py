@@ -1,5 +1,4 @@
 from flask import Blueprint, request, jsonify, session
-from backend.services.analysis_service import analyze_talk_pipeline
 from backend.services.recommend_service import recommend_for_user
 from backend.services.firestore import get_firestore
 
@@ -8,6 +7,9 @@ match_bp = Blueprint("match", __name__, url_prefix="/api/match")
 
 @match_bp.route("/analyze-talk", methods=["POST"])
 def analyze_talk():
+    # Lazy import to avoid heavy model/ML imports during app startup.
+    from backend.services.analysis_service import analyze_talk_pipeline
+
     data = request.get_json() or {}
     talk_id = data.get("talk_id")
 
