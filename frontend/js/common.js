@@ -1,4 +1,18 @@
-const API_BASE = `${window.location.origin}/api`;
+const API_BASE = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const paramBase = params.get("apiBase");
+  if (paramBase) {
+    try {
+      localStorage.setItem("api_base", paramBase);
+    } catch {}
+  }
+  try {
+    const stored = localStorage.getItem("api_base");
+    if (stored) return stored;
+  } catch {}
+  if (window.__API_BASE__) return window.__API_BASE__;
+  return `${window.location.origin}/api`;
+})();
 
 // API 호출 헬퍼
 async function apiCall(endpoint, method = "GET", data = null) {

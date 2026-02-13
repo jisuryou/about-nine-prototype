@@ -7,48 +7,91 @@
     <link rel="stylesheet" href="css/style.css" />
     <script type="module" src="js/firebase.js"></script>
     <style>
-      .detail-container {
-        width: 100%;
-        max-width: 480px;
-        min-height: 100vh;
-        padding: 30px 20px 90px;
-        margin: 0 auto;
+      .history-card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
       }
 
-      .detail-header {
+      .history-card.offline {
+        opacity: 0.6;
+      }
+
+      .history-card-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 16px;
+        width: 100%;
       }
 
-      .detail-name {
-        font-size: 26px;
-        font-weight: 600;
-      }
-
-      .status-dot {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        background: #666;
-        display: inline-block;
-        margin-left: 8px;
-      }
-
-      .status-dot.online {
-        background: #4cd964;
-      }
-
-      .detail-actions {
+      .history-name-row {
         display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .history-actions {
+        display: flex;
+        align-items: center;
         gap: 8px;
       }
 
+      .history-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+        color: var(--text-secondary);
+        font-size: 12px;
+        flex-wrap: wrap;
+      }
+
+      .history-btn {
+        width: 100%;
+        padding: 8px 20px;
+        font-size: 14px;
+        margin-top: 6px;
+      }
+
+      .history-phone {
+        width: 100%;
+        padding: 8px 20px;
+        font-size: 14px;
+        margin-top: 6px;
+        text-align: center;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text-primary);
+      }
+
+      .back-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        padding: 4px;
+        text-align: left;
+        display: inline-flex;
+        align-items: center;
+      }
+
+      .back-btn svg {
+        width: 22px;
+        height: 22px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2.2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .round-star {
+        width: 16px;
+        height: 16px;
+        object-fit: contain;
+      }
+
       .section {
-        background: rgba(255, 255, 255, 0.06);
-        border-radius: 20px;
-        padding: 16px;
+        padding: 0 16px;
         margin-bottom: 16px;
       }
 
@@ -58,14 +101,9 @@
         margin-bottom: 8px;
       }
 
-      .score-line {
-        color: var(--text-secondary);
-        margin-bottom: 12px;
-      }
-
       .selection-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
+        display: flex;
+        flex-direction: column;
         gap: 10px;
         margin-bottom: 12px;
       }
@@ -73,14 +111,26 @@
       .selection-card {
         background: rgba(0, 0, 0, 0.2);
         border-radius: 14px;
-        padding: 10px;
         text-align: center;
+        position: relative;
+        overflow: hidden;
       }
 
       .selection-card img {
         width: 100%;
-        border-radius: 10px;
-        margin-bottom: 6px;
+        height: 120px;
+        object-fit: cover;
+      }
+
+      .selection-tag {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-size: 14px;
       }
 
       .conversation {
@@ -97,27 +147,27 @@
         margin-bottom: 16px;
       }
 
-      .blocked-text {
-        color: var(--text-secondary);
-        margin-bottom: 12px;
-      }
     </style>
   </head>
   <body>
-    <div class="detail-container">
-      <div class="detail-header">
-        <div class="detail-name" id="partnerName">partner</div>
-        <div class="detail-actions">
-          <button class="secondary" onclick="goBack()">back</button>
-          <button class="secondary" id="blockBtn" onclick="blockUser()">
-            block
-          </button>
-        </div>
+    <div class="main-container">
+      <div
+        class="chat-header brand-text"
+        style="text-align: left; color: #8e8e8e"
+      >
+        about nine
       </div>
+      <button class="back-btn" onclick="navigateTo('history.html')">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 6l-6 6 6 6" />
+        </svg>
+      </button>
+      <div class="content">
+        <div class="history-card" id="partnerCard"></div>
 
-      <div id="statusLine"></div>
-      <div id="actionArea"></div>
-      <div id="roundSections"></div>
+        <div class="tabs" id="roundTabs" style="margin-top: 20px;"></div>
+        <div id="roundContent" style="margin-top: 20px;"></div>
+      </div>
     </div>
 
     <nav id="bottomNav" class="bottom-nav"></nav>
@@ -126,15 +176,6 @@
 
     <script type="module">
       import { rtdb, ref, onValue, push, set } from "/js/firebase.js";
-      import {
-        collection,
-        doc,
-        getDoc,
-        getDocs,
-        query,
-        where,
-      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-      import { db } from "/js/firebase.js";
 
       const userId = getFromLocal("user_id");
       if (!userId) {
@@ -148,16 +189,22 @@
       }
 
       let partner = null;
-      let blockedUsers = new Set();
-      let partnerBlocked = false;
       let currentUserProfile = null;
       let presenceData = {};
       let roundsMap = {};
       let hadNo = false;
+      let maxRound = 0;
+      let isBlocked = false;
 
       function roundLabel(topic) {
         if (topic === "life") return "values";
         return topic || "";
+      }
+
+      function getPartnerName() {
+        const first = partner?.first_name || partner?.firstName || "";
+        const last = partner?.last_name || partner?.lastName || "";
+        return `${first} ${last}`.trim() || "your match";
       }
 
       function isOnline(uid) {
@@ -174,169 +221,193 @@
           }
         }
 
-        const text = selection || "--";
         return `
           <div class="selection-card">
             ${img}
-            <div>${label}</div>
-            <div>${text}</div>
+            <div class="selection-tag">${label}</div>
           </div>
         `;
       }
 
       function renderRounds() {
-        const container = document.getElementById("roundSections");
+        const tabEl = document.getElementById("roundTabs");
+        const contentEl = document.getElementById("roundContent");
         const rounds = [1, 2, 3].filter((r) => roundsMap[r]);
 
-        container.innerHTML = rounds
-          .map((r) => {
-            const talk = roundsMap[r];
-            const score =
-              typeof talk.score === "number" ? talk.score : "--";
+        if (!rounds.length) {
+          tabEl.innerHTML = "";
+          contentEl.innerHTML = "";
+          return;
+        }
 
-            const mySel = talk.selections?.[userId] || "";
-            const partnerSel = talk.selections?.[partnerId] || "";
+        const activeRound = rounds.includes(maxRound) ? maxRound : rounds[0];
 
-            const conversation = Array.isArray(talk.conversation)
-              ? talk.conversation
-                  .map((t) => `${t.speaker}: ${t.text}`)
-                  .join("\n")
-              : "analysis pending";
-
-            return `
-              <div class="section">
-                <div class="section-title">${getOrdinal(r)} trial (${roundLabel(
-              talk.topic
-            )})</div>
-                <div class="score-line">chemistry score ${score}</div>
-                <div class="selection-grid">
-                  ${buildSelectionCard(mySel, talk.options, talk.topic, "you")}
-                  ${buildSelectionCard(
-                    partnerSel,
-                    talk.options,
-                    talk.topic,
-                    "partner"
-                  )}
-                </div>
-                <div class="conversation">${conversation}</div>
-              </div>
-            `;
-          })
+        tabEl.innerHTML = rounds
+          .map(
+            (r) =>
+              `<button class="tab ${r === activeRound ? "active" : ""}" data-round="${r}">${getRoundTabLabel(
+                r,
+              )}</button>`,
+          )
           .join("");
+
+        renderRoundContent(activeRound);
+
+        tabEl.querySelectorAll(".tab").forEach((tab) => {
+          tab.onclick = () => {
+            const r = Number(tab.dataset.round);
+            tabEl
+              .querySelectorAll(".tab")
+              .forEach((t) => t.classList.remove("active"));
+            tab.classList.add("active");
+            renderRoundContent(r);
+          };
+        });
       }
 
-      function renderHeader() {
-        const first = partner?.first_name || partner?.firstName || "";
-        const last = partner?.last_name || partner?.lastName || "";
-        const name = `${first} ${last}`.trim() || "your match";
-
-        document.getElementById("partnerName").innerHTML = `${name} <span class="status-dot ${
-          isOnline(partnerId) ? "online" : ""
-        }"></span>`;
-      }
-
-      function renderActionArea() {
-        const actionArea = document.getElementById("actionArea");
-        const statusLine = document.getElementById("statusLine");
-        actionArea.innerHTML = "";
-        statusLine.innerHTML = "";
-
-        if (partnerBlocked || blockedUsers.has(partnerId)) {
-          statusLine.innerHTML = `<div class="blocked-text">blocked user</div>`;
+      function renderRoundContent(roundNumber) {
+        const contentEl = document.getElementById("roundContent");
+        const talk = roundsMap[roundNumber];
+        if (!talk) {
+          contentEl.innerHTML = "";
           return;
         }
 
-        if (hadNo) {
-          statusLine.innerHTML = `<div class="blocked-text">no match after go/no</div>`;
-          return;
+        const score = typeof talk.score === "number" ? talk.score : "--";
+        const mySel = talk.selections?.[userId] || "";
+        const partnerSel = talk.selections?.[partnerId] || "";
+        const partnerName = getPartnerName();
+
+        const conversation = Array.isArray(talk.conversation)
+          ? talk.conversation
+              .map((t) => `${formatSpeaker(t.speaker, talk)}: ${t.text}`)
+              .join("\n")
+          : "analysis pending";
+
+        contentEl.innerHTML = `
+          <div class="section">
+            <div class="section-title">${roundLabel(
+              talk.topic,
+            )}: ${score}</div>
+            <div class="selection-grid">
+              ${buildSelectionCard(mySel, talk.options, talk.topic, "you")}
+              ${buildSelectionCard(partnerSel, talk.options, talk.topic, partnerName)}
+            </div>
+            <div class="conversation">${conversation}</div>
+          </div>
+        `;
+      }
+
+      function formatSpeaker(rawSpeaker, talk) {
+        if (!rawSpeaker) return "unknown";
+        const partnerName = getPartnerName();
+        const mapping = talk?.uid_mapping || {};
+
+        if (rawSpeaker === userId) return "you";
+        if (rawSpeaker === partnerId) return partnerName;
+
+        if (typeof rawSpeaker === "string") {
+          if (rawSpeaker.startsWith("uid_")) {
+            const numeric = rawSpeaker.replace("uid_", "");
+            const mapped = mapping[numeric];
+            if (mapped === userId) return "you";
+            if (mapped === partnerId) return partnerName;
+          }
+
+          const mapped = mapping[rawSpeaker];
+          if (mapped === userId) return "you";
+          if (mapped === partnerId) return partnerName;
         }
 
-        const maxRound = Math.max(...Object.keys(roundsMap).map(Number));
+        return rawSpeaker;
+      }
+
+      function renderPartnerCard() {
+        const cardEl = document.getElementById("partnerCard");
+        const name = getPartnerName();
+        const online = isOnline(partnerId);
+        const scores = [];
+        [1, 2, 3].forEach((r) => {
+          const t = roundsMap?.[r];
+          if (!t) return;
+          const label = roundLabel(t.topic);
+          const s =
+            t.score === null || typeof t.score === "undefined" ? "--" : t.score;
+          scores.push(`${label}: ${s}`);
+        });
+        const scoreHtml = scores.length
+          ? scores.map((s) => `<span>${s}</span>`).join("")
+          : "<span>no scores yet</span>";
+
+        const statusText = "";
+
+        let actionHtml = "";
         if (maxRound >= 3) {
           const phone = partner?.phone || "--";
-          actionArea.innerHTML = `
-            <div class="contact-card">
-              <div>contact</div>
-              <div>${phone}</div>
-            </div>
-          `;
+          actionHtml = `<div class="history-phone">${phone}</div>`;
         } else {
-          actionArea.innerHTML = `
-            <button class="primary" onclick="startTalk()">start talk</button>
+          const startEnabled = online && !isBlocked;
+          actionHtml = `
+            <button class="primary history-btn" ${startEnabled ? "" : "disabled"} onclick="startTalk()">start talk</button>
           `;
         }
+
+        cardEl.className = `history-card ${online ? "" : "offline"}`;
+        cardEl.innerHTML = `
+          <div class="card">
+            <div style="flex:1;">
+              <div class="history-card-header">
+                <div class="history-name-row">
+                  <span style="font-size:16px;font-weight:600;">${name}</span>
+                  <span class="status-dot ${
+                    isBlocked ? "blocked" : online ? "online" : "offline"
+                  }"></span>
+                </div>
+              </div>
+              <div class="history-meta">${scoreHtml}</div>
+              ${statusText}
+              ${actionHtml}
+            </div>
+          </div>
+        `;
       }
 
       async function loadData() {
         const profileRes = await apiCall("/users/profile");
-        blockedUsers = new Set(profileRes?.user?.blocked_users || []);
         currentUserProfile = profileRes?.user || null;
 
-        const partnerSnap = await getDoc(doc(db, "users", partnerId));
-        if (partnerSnap.exists()) {
-          partner = partnerSnap.data();
-          partnerBlocked = (partner.blocked_users || []).includes(userId);
+        const detailRes = await apiCall(`/talks/history-detail/${partnerId}`);
+        if (!detailRes.success) {
+          alert(detailRes.message || "failed to load history");
+          return;
         }
 
-        const talksRef = collection(db, "talk_history");
-        const q1 = query(
-          talksRef,
-          where("participants.user_a", "==", userId),
-          where("participants.user_b", "==", partnerId)
-        );
-        const q2 = query(
-          talksRef,
-          where("participants.user_a", "==", partnerId),
-          where("participants.user_b", "==", userId)
-        );
+        isBlocked = detailRes.blocked === true;
+        partner = detailRes.partner || null;
+        roundsMap = detailRes.rounds || {};
+        hadNo = detailRes.had_no === true;
+        maxRound = detailRes.max_round || 0;
 
-        const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-        const talks = [];
-        snap1.forEach((docSnap) => talks.push({ id: docSnap.id, ...docSnap.data() }));
-        snap2.forEach((docSnap) => talks.push({ id: docSnap.id, ...docSnap.data() }));
-
-        roundsMap = {};
-        hadNo = false;
-        talks.forEach((talk) => {
-          const round = talk.round || 1;
-          const ts = talk.timestamp || 0;
-          const score =
-            typeof talk.analysis?.chemistry_score === "number"
-              ? Math.round(talk.analysis.chemistry_score)
-              : null;
-
-          if (!roundsMap[round] || ts > roundsMap[round].timestamp) {
-            roundsMap[round] = {
-              ...talk,
-              score,
-              timestamp: ts,
-            };
-          }
-
-          if (talk.initiator_response === "no" || talk.receiver_response === "no") {
-            hadNo = true;
-          }
-        });
-
-        renderHeader();
-        renderActionArea();
+        renderPartnerCard();
         renderRounds();
       }
 
       function listenPresence() {
         onValue(ref(rtdb, "presence"), (snap) => {
           presenceData = snap.val() || {};
-          renderHeader();
+          renderPartnerCard();
         });
       }
 
       window.startTalk = async () => {
-        if (blockedUsers.has(partnerId) || partnerBlocked || hadNo) return;
+        if (hadNo || isBlocked) return;
+        if (!partner) {
+          const detailRes = await apiCall(`/talks/history-detail/${partnerId}`);
+          if (!detailRes.success || !detailRes.partner) return;
+          partner = detailRes.partner;
+        }
 
-        const partnerProfile = await getDoc(doc(db, "users", partnerId));
-        if (!partnerProfile.exists()) return;
-
-        const partnerData = { id: partnerId, ...partnerProfile.data() };
+        const partnerData = { id: partnerId, ...partner };
         saveToLocal("chat_partner", partnerData);
 
         try {
@@ -391,27 +462,19 @@
         }
       };
 
-      window.blockUser = async () => {
-        if (!confirm("block this user?")) return;
-        try {
-          await apiCall("/users/block", "POST", { target_id: partnerId });
-          blockedUsers.add(partnerId);
-          renderActionArea();
-        } catch (error) {
-          console.error("Failed to block user:", error);
-          alert("failed to block user");
-        }
-      };
-
-      window.goBack = () => {
-        navigateTo("history.html");
-      };
-
       function getOrdinal(n) {
         if (n === 1) return "1st";
         if (n === 2) return "2nd";
         if (n === 3) return "3rd";
         return `${n}th`;
+      }
+
+      function getRoundTabLabel(n) {
+        return Array.from({ length: n })
+          .map(
+            () => `<img class="round-star" src="/images/asterisk.png" alt="*">`,
+          )
+          .join("");
       }
 
       window.onload = async () => {

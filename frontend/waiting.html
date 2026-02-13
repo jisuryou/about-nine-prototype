@@ -43,6 +43,7 @@
         line-height: 1.4;
         margin-top: 80px;
         margin-bottom: 14px;
+        min-height: 84px;
       }
 
       .partner-name {
@@ -81,14 +82,18 @@
       /* 하단 텍스트 & 버튼 영역 */
       .waiting-footer {
         flex: 0 0 auto;
-        min-height: 160px;
+        min-height: 200px;
+        width: 100%;
+        position: relative;
+        padding-bottom: 80px;
       }
 
       .waiting-question {
         font-size: 20px;
         color: var(--text-primary);
         line-height: 1.6;
-        margin-bottom: 100px;
+        min-height: 80px;
+        margin-bottom: 0;
       }
 
       .waiting-buttons {
@@ -97,6 +102,10 @@
         align-items: center;
         gap: 0;
         width: 100%;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
       }
     </style>
   </head>
@@ -128,6 +137,7 @@
     <script type="module">
       import { rtdb, ref, onValue, update, get, remove } from "/js/firebase.js";
 
+      (() => {
       const userId = getFromLocal("user_id");
       if (!userId) {
         navigateTo("index.html");
@@ -317,6 +327,7 @@
       window.onload = () => {
         initUI();
       };
+      })();
     </script>
   </body>
 </html>

@@ -1,6 +1,7 @@
 # backend/services/analysis/conversation_builder.py
 
 from typing import List, Dict
+import os
 import whisper
 import threading
 
@@ -29,14 +30,20 @@ def audio_to_segments(
     """
     단일 화자 오디오 파일 → conversation segment 리스트
     """
+    if not os.path.exists(wav_path) or os.path.getsize(wav_path) < 1024:
+        return []
+
     model = get_whisper_model()
 
-    result = model.transcribe(
-        wav_path,
-        word_timestamps=False,   # segment 단위면 충분
-        language="en",            # 필요 시 자동 감지 제거
-        fp16=False                # CPU 안정성
-    )
+    try:
+        result = model.transcribe(
+            wav_path,
+            word_timestamps=False,   # segment 단위면 충분
+            language="en",            # 필요 시 자동 감지 제거
+            fp16=False                # CPU 안정성
+        )
+    except Exception:
+        return []
 
     segments = []
     for seg in result.get("segments", []):

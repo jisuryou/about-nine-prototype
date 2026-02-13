@@ -112,7 +112,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 18px;
+        font-size: 12px;
         font-weight: 600;
         color: #222;
         text-transform: lowercase;
@@ -137,26 +137,26 @@
         border-radius: 20px;
         width: 80%;
         max-width: 360px;
-        min-height: 240px;
-        padding: 20px;
+        min-height: 220px;
+        padding: 24px;
         display: flex;
         flex-direction: column;
-        justify-content: space-between;
+        justify-content: center;
         text-align: center;
+      }
+
+      .life-modal-category {
+        font-size: 12px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #666;
+        margin-bottom: 14px;
       }
 
       .life-modal-question {
         font-size: 16px;
         color: #222;
         white-space: pre-wrap;
-      }
-
-      .life-modal-close {
-        margin-top: 16px;
-        background: transparent;
-        border: none;
-        font-size: 14px;
-        color: #222;
       }
     </style>
   </head>
@@ -220,10 +220,8 @@
 
     <div class="life-modal" id="lifeModal">
       <div class="life-modal-content">
+        <div class="life-modal-category" id="lifeModalCategory"></div>
         <div class="life-modal-question" id="lifeModalQuestion"></div>
-        <button class="life-modal-close" onclick="closeLifeModal()">
-          close
-        </button>
       </div>
     </div>
 
@@ -478,12 +476,13 @@
         guideEl.querySelectorAll(".life-card").forEach((card) => {
           card.onclick = () => {
             const category = card.dataset.category;
-            openLifeModal(selectedQuestions[category]);
+            openLifeModal(category, selectedQuestions[category]);
           };
         });
       }
 
-      window.openLifeModal = function (questionText) {
+      window.openLifeModal = function (category, questionText) {
+        document.getElementById("lifeModalCategory").textContent = category;
         document.getElementById("lifeModalQuestion").textContent = questionText;
         document.getElementById("lifeModal").classList.add("active");
       };

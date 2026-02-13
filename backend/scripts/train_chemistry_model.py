@@ -24,10 +24,25 @@ def feature_row(feats: Dict[str, float]) -> Dict[str, float]:
     }
 
 
+def _label_from_go_no_go(go_no_go: Dict) -> int | None:
+    if not isinstance(go_no_go, dict) or not go_no_go:
+        return None
+    values = [v for v in go_no_go.values() if isinstance(v, bool)]
+    if len(values) < 2:
+        return None
+    if all(values):
+        return 1
+    if all(v is False for v in values):
+        return -1
+    return 0
+
+
 def build_dataset(talks: List[Dict]) -> List[Dict]:
     rows = []
     for t in talks:
-        label = t.get("label")
+        label = _label_from_go_no_go(t.get("go_no_go"))
+        if label is None:
+            label = t.get("label")
         if label is None:
             continue
         feats = ((t.get("analysis") or {}).get("features") or {})

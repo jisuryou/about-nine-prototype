@@ -1,4 +1,5 @@
 import subprocess
+import shutil
 import glob
 import os
 
@@ -18,6 +19,8 @@ def find_m3u8(directory: str):
 
 
 def m3u8_to_wav(m3u8_path: str, wav_path: str):
+    if not shutil.which("ffmpeg"):
+        raise FileNotFoundError("ffmpeg not found in PATH")
     subprocess.run([
         "ffmpeg",
         "-y",

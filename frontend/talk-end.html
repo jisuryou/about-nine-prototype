@@ -86,12 +86,7 @@
     <script src="js/common.js"></script>
 
     <script type="module">
-      import { rtdb, db, ref, get, remove } from "/js/firebase.js";
-      import {
-        collection,
-        doc,
-        setDoc,
-      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+      import { rtdb, ref, get, remove } from "/js/firebase.js";
 
       const userId = getFromLocal("user_id");
       const partner = getFromLocal("chat_partner");
@@ -177,82 +172,13 @@
       /* ================= 🔥 Firestore 저장 (top-level collection) ================= */
 
       async function saveTalkHistory() {
-        const isInitiator = matchData.initiator === userId;
-        const partnerId = partner.id;
-
-        const userSelection = isInitiator
-          ? matchData.initiator_selection
-          : matchData.receiver_selection;
-        const partnerSelection = isInitiator
-          ? matchData.receiver_selection
-          : matchData.initiator_selection;
-
-        // 통화 시간 계산
-        const duration =
-          matchData.call_started_at && matchData.ended_at
-            ? Math.floor(
-                (matchData.ended_at - matchData.call_started_at) / 1000,
-              )
-            : 0;
-
-        // 🔥 top-level talk_history 데이터 구조
-        const talkData = {
-          // 참가자 (양쪽 ID 저장)
-          participants: {
-            user_a: userId,
-            user_b: partnerId,
-          },
-
-          // Round & Topic
-          round: matchData.round || 1,
-          topic: matchData.topic || "food",
-          question:
-            matchData.question ||
-            (matchData.topic === "life"
-              ? "choose a topic and discuss it freely"
-              : ""),
-          options: matchData.options || [],
-
-          // 선택 (각자 ID를 키로 사용)
-          selections: {
-            [userId]: userSelection,
-            [partnerId]: partnerSelection,
-          },
-
-          // 응답 (go/no)
-          initiator_response: null,
-          receiver_response: null,
-
-          // 통화 정보
-          completed: true,
-          timestamp: matchData.ended_at || Date.now(),
-          duration: duration,
-          call_started_at: matchData.call_started_at || null,
-          call_ended_at: matchData.ended_at || null,
-
-          // 녹화 파일
-          recording_files: matchData.recording_file_list || [],
-          recording_uploading_status:
-            matchData.recording_uploading_status || null,
-          uid_mapping: matchData.uid_mapping || {},
-
-          // 분석 결과 (나중에 업데이트)
-          analysis: null,
-
-          // 생성 시간
-          created_at: Date.now(),
-        };
-
-        // 🔥 talk_history (top-level collection)에 저장
-        const talkRef = doc(collection(db, "talk_history"));
-        await setDoc(talkRef, talkData);
-        talkId = talkRef.id;
-
-        console.log("✅ talk_history 저장 (top-level):", talkId);
-        console.log("   participants:", talkData.participants);
-        console.log("   selections:", talkData.selections);
-
-        // localStorage에 talk_id 저장 (결과 페이지에서 사용)
+        const res = await apiCall("/talks/save-history", "POST", {
+          request_id: requestId,
+        });
+        if (!res.success) {
+          throw new Error(res.message || "failed to save talk history");
+        }
+        talkId = res.talk_id;
         saveToLocal("current_talk_id", talkId);
       }
 
@@ -266,7 +192,17 @@
             talk_id: talkId,
           }),
         });
-        return await response.json();
+        const raw = await response.text();
+        let result = null;
+        try {
+          result = raw ? JSON.parse(raw) : null;
+        } catch (error) {
+          throw new Error(raw || "analysis failed");
+        }
+        if (!response.ok) {
+          throw new Error(result?.message || "analysis failed");
+        }
+        return result;
       }
 
       function startProgress() {
@@ -335,7 +271,7 @@
         } catch (e) {
           console.error("❌ 분석 처리 실패:", e);
           stopProgress(false);
-          nextBtn.disabled = true;
+          nextBtn.disabled = false;
         }
       }
 

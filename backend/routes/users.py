@@ -317,26 +317,11 @@ def update_profile():
 # =========================
 @users_bp.route("/block", methods=["POST"])
 def block_user():
-    """유저 차단"""
-    user_id = session.get("user_id")
-    if not user_id:
-        return jsonify(success=False, message="not logged in"), 401
-
-    data, err, code = get_json()
-    if err:
-        return err, code
-
-    target_id = data.get("target_id")
-    if not target_id:
-        return jsonify(success=False, message="target_id required"), 400
-
-    db = get_firestore()
-    db.collection("users").document(user_id).set(
-        {
-            "blocked_users": firestore.ArrayUnion([target_id]),
-            "blocked_updated_at": datetime.utcnow().isoformat(),
-        },
-        merge=True,
+    """유저 차단은 talk-result에서 no 선택 시에만 가능합니다."""
+    return (
+        jsonify(
+            success=False,
+            message="blocking is only available via talk-result 'no' response",
+        ),
+        403,
     )
-
-    return jsonify(success=True)

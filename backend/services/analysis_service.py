@@ -7,7 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from firebase_admin import firestore
 
 from backend.services.chemistry_model import ChemistryModel
-from backend.services.user_profile_service import update_user_profile
+from backend.services.embedding_service import EmbeddingService
+from backend.services.user_profile_service import update_user_embedding
 
 from backend.services.analysis.models.schema import (
     Conversation,
@@ -130,6 +131,60 @@ def _conversation_from_talk(talk: Dict[str, Any]) -> Optional[Conversation]:
     return Conversation(call_id=str(talk.get("id") or talk.get("talk_id") or "unknown"), conversation=turns)
 
 
+def _conversation_text(conversation_obj: Any, max_chars: int = 8000) -> str:
+    if not conversation_obj:
+        return ""
+    turns = []
+    if isinstance(conversation_obj, Conversation):
+        turns = conversation_obj.conversation
+    elif isinstance(conversation_obj, dict):
+        turns = conversation_obj.get("conversation") or []
+
+    chunks: List[str] = []
+    for t in turns:
+        if isinstance(t, ConversationTurn):
+            speaker = t.speaker
+            text = t.text
+        elif isinstance(t, dict):
+            speaker = t.get("speaker")
+            text = t.get("text")
+        else:
+            continue
+        if not text:
+            continue
+        if speaker:
+            chunks.append(f"{speaker}: {text}")
+        else:
+            chunks.append(str(text))
+
+    full_text = "\n".join(chunks).strip()
+    if len(full_text) > max_chars:
+        return full_text[:max_chars]
+    return full_text
+
+
+def _go_no_go_from_talk(talk: Dict[str, Any]) -> Dict[str, Optional[bool]]:
+    stored = talk.get("go_no_go")
+    if isinstance(stored, dict) and stored:
+        return {k: (True if v is True else False if v is False else None) for k, v in stored.items()}
+
+    participants = talk.get("participants") or {}
+    if not isinstance(participants, dict):
+        return {}
+
+    initiator = participants.get("user_a")
+    receiver = participants.get("user_b")
+    a = talk.get("initiator_response")
+    b = talk.get("receiver_response")
+
+    result: Dict[str, Optional[bool]] = {}
+    if initiator:
+        result[initiator] = True if a == "go" else False if a == "no" else None
+    if receiver:
+        result[receiver] = True if b == "go" else False if b == "no" else None
+    return result
+
+
 # -----------------------------
 # Main pipeline
 # -----------------------------
@@ -160,6 +215,7 @@ class AnalysisService:
                 model_path = "chemistry_model.pkl"
         # load() will fall back to baseline if missing/unreachable
         self.model.load(model_path)
+        self.embedding = EmbeddingService()
 
         self.rhythm = RhythmAnalyzer()
         self.discourse = DiscourseAnalyzer()
@@ -170,74 +226,102 @@ class AnalysisService:
 
     def analyze_talk_pipeline(self, talk_id: str) -> Dict[str, Any]:
         talk_ref = db.collection("talk_history").document(talk_id)
-        snap = talk_ref.get()
-        if not snap.exists:
-            return {"success": False, "message": "talk_history not found", "talk_id": talk_id}
+        conversation_list = None
+        speaker_wavs = None
+        try:
+            snap = talk_ref.get()
+            if not snap.exists:
+                return {"success": False, "message": "talk_history not found", "talk_id": talk_id}
 
-        talk = snap.to_dict() or {}
-        participants = _participants_from_talk(talk)
+            talk = snap.to_dict() or {}
+            participants = _participants_from_talk(talk)
 
-        # 1) Ensure conversation exists (build if missing)
-        conversation_obj = _conversation_from_talk(talk)
+            # 1) Ensure conversation exists (build if missing)
+            conversation_obj = _conversation_from_talk(talk)
 
-        # Audio inputs for pitch analyzer: prefer already-built wav paths if saved.
-        # Otherwise build from Storage recordings.
-        wav_paths_by_speaker: Dict[str, str] = talk.get("wav_paths_by_speaker") or {}
-        wav_paths_all: List[str] = talk.get("wav_paths") or talk.get("audio_paths") or []
+            # Audio inputs for pitch analyzer: prefer already-built wav paths if saved.
+            # Otherwise build from Storage recordings.
+            wav_paths_by_speaker: Dict[str, str] = talk.get("wav_paths_by_speaker") or {}
+            wav_paths_all: List[str] = talk.get("wav_paths") or talk.get("audio_paths") or []
 
-        if conversation_obj is None:
-            recording_files = _normalize_recording_files(talk)
-            if not recording_files:
-                return {"success": False, "message": "no conversation and no recording_files", "talk_id": talk_id}
+            if conversation_obj is None:
+                recording_files = _normalize_recording_files(talk)
+                if not recording_files:
+                    return {"success": False, "message": "no conversation and no recording_files", "talk_id": talk_id}
 
-            # (a) Download from Firebase Storage to local temp paths
-            # storage_loader should return local file paths + metadata
-            # expected item: {"uid": <agora_uid or None>, "storage_path": "...", "local_path": "..."}
-            downloaded = self.storage_loader.download_recordings(recording_files, talk_id=talk_id)
+                # (a) Download from Firebase Storage to local temp paths
+                # storage_loader should return local file paths + metadata
+                # expected item: {"uid": <agora_uid or None>, "storage_path": "...", "local_path": "..."}
+                downloaded = self.storage_loader.download_recordings(recording_files, talk_id=talk_id)
 
-            # (b) Convert to wav (or extract wav) for STT & pitch
-            # expected return: [{"uid":..., "wav_path":..., "speaker_hint":...}, ...]
-            wav_items = self.audio_builder.to_wav(downloaded, talk_id=talk_id)
+                # (b) Convert to wav (or extract wav) for STT & pitch
+                # expected return: [{"uid":..., "wav_path":..., "speaker_hint":...}, ...]
+                wav_items = self.audio_builder.to_wav(downloaded, talk_id=talk_id)
 
-            # build mapping for pitch analyzer
-            wav_paths_all = [x["wav_path"] for x in wav_items if x.get("wav_path")]
-            wav_paths_by_speaker = {}  # will be set after speaker mapping
+                # build mapping for pitch analyzer
+                wav_paths_all = [x["wav_path"] for x in wav_items if x.get("wav_path")]
+                wav_paths_by_speaker = {}  # will be set after speaker mapping
 
-            # (c) Build conversation (STT -> segments -> unified conversation)
-            # conversation_builder should:
-            #  - transcribe per wav
-            #  - label speaker using uid_mapping if present, else best-effort
-            uid_mapping = talk.get("uid_mapping") or _safe_get(talk, "meta", "uid_mapping", default={}) or {}
-            conv_dict = self.conversation_builder.build(
-                call_id=talk_id,
-                wav_items=wav_items,
-                uid_mapping=uid_mapping,
-                participants=participants,
-            )
-            # conv_dict expected: {"call_id":..., "conversation":[{speaker,start,end,text},...], "speaker_wavs":{speaker:wav_path}}
-            conversation_list = conv_dict.get("conversation") or []
-            speaker_wavs = conv_dict.get("speaker_wavs") or {}
+                # (c) Build conversation (STT -> segments -> unified conversation)
+                # conversation_builder should:
+                #  - transcribe per wav
+                #  - label speaker using uid_mapping if present, else best-effort
+                uid_mapping = talk.get("uid_mapping") or _safe_get(talk, "meta", "uid_mapping", default={}) or {}
+                conv_dict = self.conversation_builder.build(
+                    call_id=talk_id,
+                    wav_items=wav_items,
+                    uid_mapping=uid_mapping,
+                    participants=participants,
+                )
+                # conv_dict expected: {"call_id":..., "conversation":[{speaker,start,end,text},...], "speaker_wavs":{speaker:wav_path}}
+                conversation_list = conv_dict.get("conversation") or []
+                speaker_wavs = conv_dict.get("speaker_wavs") or {}
 
-            # persist built conversation for caching
-            talk_ref.update(
-                {
-                    "conversation": conversation_list,
-                    "wav_paths": wav_paths_all,
-                    "wav_paths_by_speaker": speaker_wavs,
-                    "analysis_built_at": _now_ms(),
-                }
-            )
+                # persist built conversation for caching
+                talk_ref.update(
+                    {
+                        "conversation": conversation_list,
+                        "wav_paths": wav_paths_all,
+                        "wav_paths_by_speaker": speaker_wavs,
+                        "analysis_built_at": _now_ms(),
+                    }
+                )
+        except Exception as e:
+            import traceback
+            err_msg = f"{type(e).__name__}: {e}"
+            err_trace = traceback.format_exc()
+            try:
+                talk_ref.update(
+                    {
+                        "analysis_error": err_msg,
+                        "analysis_trace": err_trace,
+                        "analysis_failed_at": _now_ms(),
+                    }
+                )
+            except Exception:
+                pass
+            return {
+                "success": False,
+                "message": "analysis failed",
+                "error": err_msg,
+                "talk_id": talk_id,
+            }
 
+        if conversation_obj is None and conversation_list is not None:
             # reload object for analyzers
             talk["conversation"] = conversation_list
             talk["wav_paths"] = wav_paths_all
-            talk["wav_paths_by_speaker"] = speaker_wavs
+            talk["wav_paths_by_speaker"] = speaker_wavs or {}
             conversation_obj = _conversation_from_talk(talk)
-            wav_paths_by_speaker = speaker_wavs
+            wav_paths_by_speaker = speaker_wavs or {}
 
-        # At this point conversation_obj must exist
+        # If conversation couldn't be built, proceed with empty conversation
         if conversation_obj is None:
-            return {"success": False, "message": "failed to build conversation", "talk_id": talk_id}
+            conversation_obj = {"conversation": []}
+            try:
+                talk_ref.update({"analysis_warning": "conversation_empty", "analysis_built_at": _now_ms()})
+            except Exception:
+                pass
 
         # 2) Run analyzers
         try:
@@ -287,21 +371,42 @@ class AnalysisService:
                 "preference_sync": pref_out,
                 "voice_pitch": pitch_out,
             },
+            "model_version": self.model.version(),
             "version": self.model.version(),
             "analyzed_at": _now_ms(),
         }
 
+        # 3.5) Conversation embedding
+        pair_embedding = None
+        try:
+            full_text = _conversation_text(conversation_obj)
+            pair_embedding = self.embedding.encode_text(full_text)
+        except Exception:
+            pair_embedding = None
+        if pair_embedding:
+            analysis["pair_embedding"] = pair_embedding
+
+        go_no_go = _go_no_go_from_talk(talk)
+
         # 4) Persist analysis
         talk_ref.update({"analysis": analysis})
 
-        # 5) Update user profiles (for recommendation)
-        # Note: update_user_profile should handle missing users safely.
-        for uid in participants:
-            try:
-                update_user_profile(uid, feats, chemistry_score)
-            except Exception:
-                # don't fail the whole pipeline on profile update
-                pass
+        # 5) Update user embeddings (for recommendation)
+        # Only update for users with explicit go/no labels.
+        if pair_embedding:
+            updated_map = (talk.get("embedding_updated") or {}) if isinstance(talk, dict) else {}
+            for uid, go in go_no_go.items():
+                if go is None:
+                    continue
+                if isinstance(updated_map, dict) and updated_map.get(uid) is True:
+                    continue
+                try:
+                    updated = update_user_embedding(uid, pair_embedding, go=go)
+                    if updated:
+                        talk_ref.update({f"embedding_updated.{uid}": True})
+                except Exception:
+                    # don't fail the whole pipeline on profile update
+                    pass
 
         return {"success": True, "talk_id": talk_id, "analysis": analysis}
 

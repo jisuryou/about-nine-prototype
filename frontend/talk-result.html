@@ -349,6 +349,17 @@
         transform: translateX(-50%) translateY(0);
       }
 
+      .profile-sheet-handle {
+        width: 40px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 2px;
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
       .profile-sheet-header {
         margin-bottom: 30px;
       }
@@ -413,7 +424,7 @@
       <!-- 입력 영역 (드롭다운 + 전송) -->
       <div class="result-input-area" id="inputArea" style="display: none">
         <select class="choice-dropdown" id="choiceSelect">
-          <option value="">go</option>
+          <option value="">go or no</option>
           <option value="go">go</option>
           <option value="no">no</option>
         </select>
@@ -490,6 +501,7 @@
 
     <!-- 프로필 바텀시트 -->
     <div class="profile-bottom-sheet" id="profileSheet">
+      <div class="profile-sheet-handle"></div>
       <div class="profile-sheet-header">
         <div class="profile-sheet-name" id="profileName">tommy hills</div>
         <div class="profile-sheet-subtitle" id="profileSubtitle">
@@ -509,13 +521,6 @@
     <script src="js/common.js"></script>
 
     <script type="module">
-      import { db } from "/js/firebase.js";
-      import {
-        doc,
-        getDoc,
-        onSnapshot,
-        updateDoc,
-      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
       const userId = getFromLocal("user_id");
       const talkId = getFromLocal("current_talk_id");
@@ -538,16 +543,14 @@
         }
 
         try {
-          const talkRef = doc(db, "talk_history", talkId);
-          const talkSnap = await getDoc(talkRef);
-
-          if (!talkSnap.exists()) {
+          const res = await apiCall(`/talks/history/${talkId}`);
+          if (!res.success || !res.talk) {
             console.error("❌ talk_history 없음");
             navigateTo("lounge.html");
             return;
           }
 
-          talkData = talkSnap.data();
+          talkData = res.talk;
           currentRound = talkData.round || 1;
           analysisScore = extractAnalysisScore(talkData);
 
@@ -662,13 +665,14 @@
         document.getElementById("inputArea").style.display = "none";
         document.getElementById("sendBtn").disabled = true;
 
-        const isInitiator = talkData.participants.user_a === userId;
-        const talkRef = doc(db, "talk_history", talkId);
-
         try {
-          await updateDoc(talkRef, {
-            [isInitiator ? "initiator_response" : "receiver_response"]: choice,
+          const res = await apiCall("/talks/respond", "POST", {
+            talk_id: talkId,
+            choice,
           });
+          if (!res.success) {
+            throw new Error(res.message || "failed to submit response");
+          }
         } catch (error) {
           console.error("Failed to submit response:", error);
           alert("failed to submit response");
@@ -687,45 +691,33 @@
       /* ================= 상대방 응답 대기 ================= */
 
       function listenForPartnerResponse() {
-        const talkRef = doc(db, "talk_history", talkId);
+        const pollInterval = setInterval(async () => {
+          try {
+            const res = await apiCall(`/talks/history/${talkId}`);
+            if (!res.success || !res.talk) return;
+            const data = res.talk;
 
-        onSnapshot(talkRef, async (snap) => {
-          const data = snap.data();
-          if (!data) return;
+            const isInitiator = talkData.participants.user_a === userId;
+            const partnerResponse = isInitiator
+              ? data.receiver_response
+              : data.initiator_response;
 
-          await ensureLabel(data, talkRef);
+            if (partnerResponse) {
+              clearInterval(pollInterval);
+              console.log(`✅ 상대방 응답: ${partnerResponse}`);
 
-          const isInitiator = talkData.participants.user_a === userId;
-          const partnerResponse = isInitiator
-            ? data.receiver_response
-            : data.initiator_response;
-
-          if (partnerResponse) {
-            console.log(`✅ 상대방 응답: ${partnerResponse}`);
-
-            if (myChoice === "go" && partnerResponse === "go") {
-              await handleBothGo();
-            } else {
-              await handleSomeoneNo(partnerResponse);
+              if (myChoice === "go" && partnerResponse === "go") {
+                await handleBothGo();
+              } else {
+                await handleSomeoneNo(partnerResponse);
+              }
             }
+          } catch (error) {
+            console.error("Failed to poll response:", error);
           }
-        });
+        }, 2000);
       }
 
-      async function ensureLabel(data, talkRef) {
-        if (data.label !== undefined && data.label !== null) return;
-
-        const a = data.initiator_response;
-        const b = data.receiver_response;
-        if (!a || !b) return;
-
-        const label = a === "go" && b === "go" ? 1 : 0;
-        try {
-          await updateDoc(talkRef, { label });
-        } catch (error) {
-          console.error("Failed to set label:", error);
-        }
-      }
 
       /* ================= 둘 다 GO ================= */
 
@@ -876,6 +868,9 @@
       function openSheet(sheetId) {
         document.getElementById("sheetOverlay").classList.add("active");
         document.getElementById(sheetId).classList.add("active");
+        if (sheetId === "profileSheet") {
+          document.getElementById("profileSheet").style.transform = "";
+        }
       }
 
       window.closeSheet = () => {
@@ -883,6 +878,41 @@
         document.getElementById("analysisSheet").classList.remove("active");
         document.getElementById("profileSheet").classList.remove("active");
       };
+
+      /* ================= Bottom Sheet Drag ================= */
+      const profileSheetEl = document.getElementById("profileSheet");
+      let dragStartY = null;
+      let dragging = false;
+
+      profileSheetEl.addEventListener("touchstart", (e) => {
+        if (!profileSheetEl.classList.contains("active")) return;
+        dragStartY = e.touches[0].clientY;
+        dragging = true;
+        profileSheetEl.style.transition = "none";
+      });
+
+      profileSheetEl.addEventListener("touchmove", (e) => {
+        if (!dragging) return;
+        const dy = e.touches[0].clientY - dragStartY;
+        if (dy > 0) {
+          profileSheetEl.style.transform = `translateX(-50%) translateY(${dy}px)`;
+        }
+      });
+
+      profileSheetEl.addEventListener("touchend", () => {
+        if (!dragging) return;
+        dragging = false;
+        const match = profileSheetEl.style.transform.match(
+          /translateY\(([-0-9.]+)px\)/,
+        );
+        const dy = match ? parseFloat(match[1]) : 0;
+        profileSheetEl.style.transition = "";
+        if (dy > 120) {
+          closeSheet();
+        } else {
+          profileSheetEl.style.transform = "";
+        }
+      });
 
       /* ================= Score 계산 ================= */
 
@@ -908,11 +938,10 @@
       async function waitForAnalysis(maxAttempts = 15, intervalMs = 1000) {
         for (let i = 0; i < maxAttempts; i += 1) {
           await sleep(intervalMs);
-          const talkRef = doc(db, "talk_history", talkId);
-          const snap = await getDoc(talkRef);
-          if (!snap.exists()) continue;
+          const res = await apiCall(`/talks/history/${talkId}`);
+          if (!res.success || !res.talk) continue;
 
-          const fresh = snap.data();
+          const fresh = res.talk;
           const score = extractAnalysisScore(fresh);
           if (score !== null) {
             talkData = fresh;

@@ -1,6 +1,7 @@
 from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
 from pathlib import Path
+import os
 
 from backend.config import SECRET_KEY, CORS_ORIGINS, DEBUG
 from backend.services.firestore import get_firestore
@@ -97,4 +98,5 @@ def index():
 # =========================
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=DEBUG)
+    port = int(os.environ.get("PORT", "5001"))
+    app.run(host="0.0.0.0", port=port, debug=DEBUG)

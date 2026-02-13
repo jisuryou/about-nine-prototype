@@ -7,15 +7,19 @@ match_bp = Blueprint("match", __name__, url_prefix="/api/match")
 
 @match_bp.route("/analyze-talk", methods=["POST"])
 def analyze_talk():
-    data = request.get_json()
+    data = request.get_json() or {}
     talk_id = data.get("talk_id")
 
     if not talk_id:
-        return jsonify(success=False), 400
+        return jsonify(success=False, message="talk_id required"), 400
 
-    analyze_talk_pipeline(talk_id)
-
-    return jsonify(success=True)
+    try:
+        result = analyze_talk_pipeline(talk_id)
+        if not result.get("success", True):
+            return jsonify(result), 500
+        return jsonify(success=True, talk_id=talk_id)
+    except Exception as e:
+        return jsonify(success=False, message="analysis failed", error=str(e)), 500
 
 @match_bp.route("/recommend", methods=["GET"])
 def recommend():

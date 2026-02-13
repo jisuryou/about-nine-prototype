@@ -6,11 +6,16 @@ talks.py - 대화 관련 엔드포인트
 - get-talk-history: 대화 기록 조회
 """
 
+from datetime import datetime
 from flask import Blueprint, jsonify, session, request
+from firebase_admin import firestore
 from backend.services.firestore import get_firestore
+from backend.services.rtdb import get_rtdb
+from backend.services.user_profile_service import update_user_embedding
 from backend.utils.request import get_json
 import random
 import os
+import time
 
 talks_bp = Blueprint("talks", __name__, url_prefix="/api/talks")
 
@@ -174,6 +179,373 @@ def calculate_round():
         import traceback
         traceback.print_exc()
         return jsonify(success=False, message=str(e)), 500
+
+
+# =========================
+# Save Talk History (from match_request)
+# =========================
+@talks_bp.route("/save-history", methods=["POST"])
+def save_history():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    data, err, code = get_json()
+    if err:
+        return err, code
+
+    request_id = data.get("request_id")
+    if not request_id:
+        return jsonify(success=False, message="request_id required"), 400
+
+    rtdb = get_rtdb()
+    if not rtdb:
+        return jsonify(success=False, message="rtdb not configured"), 500
+
+    match_request_ref = rtdb.child("match_requests").child(request_id)
+    match_request = match_request_ref.get()
+    if not match_request:
+        return jsonify(success=False, message="match_request not found"), 404
+
+    existing_talk_id = match_request.get("talk_id")
+    if existing_talk_id:
+        return jsonify(success=True, talk_id=existing_talk_id)
+
+    initiator = match_request.get("initiator")
+    receiver = match_request.get("receiver")
+    if not initiator or not receiver:
+        return jsonify(success=False, message="invalid match_request"), 400
+
+    initiator_selection = match_request.get("initiator_selection")
+    receiver_selection = match_request.get("receiver_selection")
+
+    call_started = match_request.get("call_started_at")
+    call_ended = match_request.get("ended_at")
+    duration = 0
+    if call_started and call_ended:
+        duration = int((call_ended - call_started) / 1000)
+
+    talk_data = {
+        "match_request_id": request_id,
+        "participants": {"user_a": initiator, "user_b": receiver},
+        "round": match_request.get("round", 1),
+        "topic": match_request.get("topic", "food"),
+        "question": match_request.get("question")
+        or (
+            "choose a topic and discuss it freely"
+            if match_request.get("topic") == "life"
+            else ""
+        ),
+        "options": match_request.get("options") or [],
+        "selections": {
+            initiator: initiator_selection,
+            receiver: receiver_selection,
+        },
+        "completed": True,
+        "timestamp": call_ended or call_started or int(time.time() * 1000),
+        "duration": duration,
+        "call_started_at": call_started,
+        "call_ended_at": call_ended,
+        "recording_files": match_request.get("recording_file_list") or [],
+        "recording_uploading_status": match_request.get("recording_uploading_status"),
+        "uid_mapping": match_request.get("uid_mapping") or {},
+        "analysis": None,
+        "created_at": int(time.time() * 1000),
+    }
+
+    db = get_firestore()
+    # Idempotency: if talk_history already created for this request, reuse it.
+    existing = (
+        db.collection("talk_history")
+        .where("match_request_id", "==", request_id)
+        .limit(1)
+        .stream()
+    )
+    existing_doc = next(existing, None)
+    if existing_doc:
+        talk_id = existing_doc.id
+        match_request_ref.update({"talk_id": talk_id})
+        return jsonify(success=True, talk_id=talk_id)
+
+    talk_ref = db.collection("talk_history").document()
+    talk_ref.set(talk_data)
+    match_request_ref.update({"talk_id": talk_ref.id})
+
+    return jsonify(success=True, talk_id=talk_ref.id, talk=talk_data)
+
+
+# =========================
+# Get Talk History
+# =========================
+@talks_bp.route("/history/<talk_id>", methods=["GET"])
+def get_history(talk_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    db = get_firestore()
+    snap = db.collection("talk_history").document(talk_id).get()
+    if not snap.exists:
+        return jsonify(success=False, message="talk_history not found"), 404
+
+    return jsonify(success=True, talk=snap.to_dict())
+
+
+# =========================
+# History List
+# =========================
+@talks_bp.route("/history-list", methods=["GET"])
+def history_list():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    db = get_firestore()
+    talks_ref = db.collection("talk_history")
+
+    query1 = (
+        talks_ref.where("participants.user_a", "==", user_id).stream()
+    )
+    query2 = (
+        talks_ref.where("participants.user_b", "==", user_id).stream()
+    )
+
+    partner_map = {}
+
+    def add_talk(talk):
+        participants = talk.get("participants") or {}
+        partner_id = (
+            participants.get("user_b")
+            if participants.get("user_a") == user_id
+            else participants.get("user_a")
+        )
+        if not partner_id:
+            return
+
+        entry = partner_map.setdefault(
+            partner_id,
+            {
+                "partner_id": partner_id,
+                "talks_by_round": {},
+                "last_timestamp": 0,
+                "had_no": False,
+            },
+        )
+
+        round_num = talk.get("round") or 1
+        ts = talk.get("timestamp") or 0
+        score = None
+        if isinstance(talk.get("analysis"), dict):
+            raw = talk.get("analysis", {}).get("chemistry_score")
+            if isinstance(raw, (int, float)):
+                score = round(raw)
+
+        existing = entry["talks_by_round"].get(round_num)
+        if not existing or ts > existing.get("ts", 0):
+            entry["talks_by_round"][round_num] = {
+                "topic": talk.get("topic"),
+                "score": score,
+                "ts": ts,
+            }
+
+        entry["last_timestamp"] = max(entry["last_timestamp"], ts)
+
+        go_no_go = talk.get("go_no_go") or {}
+        if isinstance(go_no_go, dict) and any(v is False for v in go_no_go.values()):
+            entry["had_no"] = True
+        elif talk.get("initiator_response") == "no" or talk.get("receiver_response") == "no":
+            entry["had_no"] = True
+
+    for doc in query1:
+        add_talk(doc.to_dict() or {})
+    for doc in query2:
+        add_talk(doc.to_dict() or {})
+
+    partner_ids = list(partner_map.keys())
+    if not partner_ids:
+        return jsonify(success=True, items=[])
+
+    # current user's block list
+    me = db.collection("users").document(user_id).get().to_dict() or {}
+    my_blocked = set(me.get("blocked_users") or [])
+
+    items = []
+    for pid in partner_ids:
+        user_doc = db.collection("users").document(pid).get()
+        if not user_doc.exists:
+            continue
+        user_data = user_doc.to_dict() or {}
+        other_blocked = set(user_data.get("blocked_users") or [])
+        is_blocked = pid in my_blocked or user_id in other_blocked
+
+        items.append(
+            {
+                "partner_id": pid,
+                "first_name": user_data.get("first_name") or user_data.get("firstName"),
+                "last_name": user_data.get("last_name") or user_data.get("lastName"),
+                "talks_by_round": partner_map[pid]["talks_by_round"],
+                "last_timestamp": partner_map[pid]["last_timestamp"],
+                "had_no": partner_map[pid]["had_no"],
+                "blocked": is_blocked,
+            }
+        )
+
+    items.sort(key=lambda x: x.get("last_timestamp", 0), reverse=True)
+    return jsonify(success=True, items=items)
+
+
+# =========================
+# History Detail
+# =========================
+@talks_bp.route("/history-detail/<partner_id>", methods=["GET"])
+def history_detail(partner_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    db = get_firestore()
+    partner_doc = db.collection("users").document(partner_id).get()
+    if not partner_doc.exists:
+        return jsonify(success=False, message="partner not found"), 404
+
+    partner = partner_doc.to_dict() or {}
+
+    # block check
+    me = db.collection("users").document(user_id).get().to_dict() or {}
+    my_blocked = set(me.get("blocked_users") or [])
+    other_blocked = set(partner.get("blocked_users") or [])
+    is_blocked = partner_id in my_blocked or user_id in other_blocked
+
+    talks_ref = db.collection("talk_history")
+    query1 = (
+        talks_ref.where("participants.user_a", "==", user_id)
+        .where("participants.user_b", "==", partner_id)
+        .stream()
+    )
+    query2 = (
+        talks_ref.where("participants.user_a", "==", partner_id)
+        .where("participants.user_b", "==", user_id)
+        .stream()
+    )
+
+    rounds = {}
+    had_no = False
+    max_round = 0
+
+    def add_detail(talk):
+        nonlocal had_no, max_round
+        round_num = talk.get("round") or 1
+        max_round = max(max_round, round_num)
+        ts = talk.get("timestamp") or 0
+
+        score = None
+        if isinstance(talk.get("analysis"), dict):
+            raw = talk.get("analysis", {}).get("chemistry_score")
+            if isinstance(raw, (int, float)):
+                score = round(raw)
+
+        existing = rounds.get(round_num)
+        if existing and existing.get("timestamp", 0) >= ts:
+            return
+
+        rounds[round_num] = {
+            "topic": talk.get("topic"),
+            "score": score,
+            "selections": talk.get("selections") or {},
+            "options": talk.get("options") or [],
+            "conversation": talk.get("conversation") or [],
+            "uid_mapping": talk.get("uid_mapping") or {},
+            "timestamp": ts,
+        }
+
+        go_no_go = talk.get("go_no_go") or {}
+        if isinstance(go_no_go, dict) and any(v is False for v in go_no_go.values()):
+            had_no = True
+        elif talk.get("initiator_response") == "no" or talk.get("receiver_response") == "no":
+            had_no = True
+
+    for doc in query1:
+        add_detail(doc.to_dict() or {})
+    for doc in query2:
+        add_detail(doc.to_dict() or {})
+
+    return jsonify(
+        success=True,
+        blocked=is_blocked,
+        partner={
+            "id": partner_id,
+            "first_name": partner.get("first_name") or partner.get("firstName"),
+            "last_name": partner.get("last_name") or partner.get("lastName"),
+            "phone": partner.get("phone"),
+        },
+        rounds=rounds,
+        had_no=had_no,
+        max_round=max_round,
+    )
+
+
+# =========================
+# Save Response (go/no)
+# =========================
+@talks_bp.route("/respond", methods=["POST"])
+def save_response():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    data, err, code = get_json()
+    if err:
+        return err, code
+
+    talk_id = data.get("talk_id")
+    choice = data.get("choice")
+    if not talk_id or choice not in ["go", "no"]:
+        return jsonify(success=False, message="talk_id and choice required"), 400
+
+    db = get_firestore()
+    talk_ref = db.collection("talk_history").document(talk_id)
+    snap = talk_ref.get()
+    if not snap.exists:
+        return jsonify(success=False, message="talk_history not found"), 404
+
+    talk = snap.to_dict() or {}
+    participants = talk.get("participants") or {}
+    is_initiator = participants.get("user_a") == user_id
+    is_receiver = participants.get("user_b") == user_id
+    if not (is_initiator or is_receiver):
+        return jsonify(success=False, message="not a participant"), 403
+
+    update_data = {f"go_no_go.{user_id}": choice == "go"}
+
+    go_no_go = talk.get("go_no_go") or {}
+    merged = {**go_no_go, user_id: (choice == "go")}
+
+    talk_ref.set(update_data, merge=True)
+
+    # Update user embedding if analysis already exists
+    try:
+        analysis = talk.get("analysis") or {}
+        pair_embedding = analysis.get("pair_embedding")
+        embedding_updated = talk.get("embedding_updated") or {}
+        if pair_embedding and not embedding_updated.get(user_id):
+            updated = update_user_embedding(user_id, pair_embedding, go=(choice == "go"))
+            if updated:
+                talk_ref.update({f"embedding_updated.{user_id}": True})
+    except Exception:
+        pass
+
+    if choice == "no":
+        partner_id = participants.get("user_b") if is_initiator else participants.get("user_a")
+        if partner_id:
+            db.collection("users").document(user_id).set(
+                {
+                    "blocked_users": firestore.ArrayUnion([partner_id]),
+                    "blocked_updated_at": datetime.utcnow().isoformat(),
+                },
+                merge=True,
+            )
+
+    return jsonify(success=True)
 
 
 # =========================
