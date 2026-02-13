@@ -96,8 +96,6 @@ def index():
 
 if __name__ == "__main__":
     port_env = os.environ.get("PORT")
-    if port_env:
-        port = int(port_env)
-    else:
-        port = 5001 if DEBUG else 10000
+    # Always prefer Render's $PORT; fall back to 10000 for production-like hosting.
+    port = int(port_env) if port_env else 10000
     app.run(host="0.0.0.0", port=port, debug=DEBUG)
