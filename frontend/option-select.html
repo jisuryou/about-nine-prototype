@@ -14,10 +14,12 @@
         min-height: 100vh;
         display: flex;
         flex-direction: column;
-        padding: 30px 20px;
+        padding: calc(30px + var(--safe-top)) 20px
+          calc(30px + var(--safe-bottom));
         font-family: "Merriweather", serif;
         justify-content: space-between;
         overflow: hidden;
+        box-sizing: border-box;
       }
 
       .option-header {
@@ -51,31 +53,27 @@
         align-items: center;
         overflow: hidden;
         position: relative;
+        width: 100%;
+        box-sizing: border-box;
       }
 
       .carousel-track {
-        display: flex;
-        gap: 20px;
-        overflow-x: auto;
-        scroll-snap-type: x mandatory;
-        scroll-behavior: smooth;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        overflow: hidden;
         width: 100%;
-        padding: 20px calc(50% - 140px);
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-      }
-
-      .carousel-track::-webkit-scrollbar {
-        display: none;
+        padding: 20px 0 0;
+        box-sizing: border-box;
       }
 
       .carousel-item {
-        flex-shrink: 0;
-        width: 280px;
-        scroll-snap-align: center;
+        width: 100%;
+        min-width: 0;
         transition: all 0.3s ease;
         opacity: 0.4;
         transform: scale(0.85);
+        cursor: pointer;
       }
 
       .carousel-item.center {
@@ -85,7 +83,7 @@
 
       .carousel-item img {
         width: 100%;
-        height: 280px;
+        height: 180px;
         object-fit: cover;
         border-radius: 20px;
         border: 2px solid transparent;
@@ -127,10 +125,13 @@
       .guide-cards {
         flex: 1;
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
         margin-bottom: 40px;
         overflow-y: auto;
+        overflow-x: hidden;
+        width: 100%;
+        box-sizing: border-box;
       }
 
       .guide-card {
@@ -148,6 +149,20 @@
         text-align: center;
         aspect-ratio: 1 / 1;
         min-height: 96px;
+        min-width: 0;
+      }
+
+      @media (max-width: 420px) {
+        .guide-cards {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .guide-card {
+          padding: 28px 10px;
+          font-size: 11px;
+          min-height: 88px;
+        }
       }
 
       .guide-card:active {
@@ -196,6 +211,59 @@
       .option-footer {
         flex-shrink: 0;
       }
+
+      @supports (height: 100svh) {
+        .option-container {
+          min-height: 100svh;
+        }
+      }
+
+      @media (max-width: 420px) {
+        .option-container {
+          padding: calc(22px + var(--safe-top)) 16px
+            calc(22px + var(--safe-bottom));
+        }
+
+        .topic-badge {
+          font-size: 12px;
+          padding: 6px 16px;
+          margin-bottom: 14px;
+        }
+
+        .option-question {
+          font-size: 14px;
+        }
+
+        .carousel-track {
+          gap: 10px;
+        }
+
+        .carousel-item img {
+          height: 150px;
+        }
+
+        .carousel-item-label {
+          font-size: 14px;
+        }
+
+        .guide-cards {
+          margin-bottom: 28px;
+        }
+
+        .modal-content {
+          padding: 30px 20px;
+        }
+      }
+
+      @media (max-height: 700px) {
+        .carousel-item img {
+          height: 140px;
+        }
+
+        .guide-cards {
+          margin-bottom: 22px;
+        }
+      }
     </style>
   </head>
 
@@ -242,7 +310,7 @@
 
       let selectedOption = null;
       let currentQuestion = null;
-      let currentCenterIndex = 0;
+      let currentCenterIndex = -1;
       let requestId = null;
 
       function initRequestId() {
@@ -399,8 +467,15 @@
         if (topic === "food" || topic === "visual") {
           await loadAndRenderCarousel();
         } else {
-          renderGuide();
-          startReadyListener();
+          try {
+            const selectedQuestions = await loadOrCreateGuideQuestions();
+            renderGuide(selectedQuestions);
+            startReadyListener();
+          } catch (error) {
+            console.error("Failed to load guide questions:", error);
+            alert("failed to load questions");
+            navigateTo("lounge.html");
+          }
         }
       };
 
@@ -474,28 +549,22 @@
           </div>
         `;
 
-        const track = document.getElementById("carouselTrack");
-
         // 🔥 첫 번째 아이템 자동 선택
-        selectedOption = options[0].category;
-        console.log("Auto-selected:", selectedOption);
+        setSelectedIndex(0, options);
 
-        // 🔥 스크롤 이벤트로 중앙 감지
-        track.addEventListener("scroll", updateCenterItem);
+        document.querySelectorAll(".carousel-item").forEach((item, index) => {
+          item.onclick = () => {
+            setSelectedIndex(index, options);
+          };
+        });
       }
 
-      function updateCenterItem() {
-        const track = document.getElementById("carouselTrack");
-        const scrollLeft = track.scrollLeft;
-        const itemWidth = 280 + 20; // width + gap
-        const centerIndex = Math.round(scrollLeft / itemWidth);
-
-        if (centerIndex === currentCenterIndex) return;
-        currentCenterIndex = centerIndex;
-
+      function setSelectedIndex(index, options) {
+        if (index === currentCenterIndex) return;
+        currentCenterIndex = index;
         // 모든 아이템에서 center 클래스 제거
-        document.querySelectorAll(".carousel-item").forEach((item, index) => {
-          if (index === centerIndex) {
+        document.querySelectorAll(".carousel-item").forEach((item, itemIndex) => {
+          if (itemIndex === index) {
             item.classList.add("center");
             selectedOption = item.dataset.option;
           } else {
@@ -504,8 +573,8 @@
         });
 
         // Dots 업데이트
-        document.querySelectorAll(".carousel-dot").forEach((dot, index) => {
-          if (index === centerIndex) {
+        document.querySelectorAll(".carousel-dot").forEach((dot, dotIndex) => {
+          if (dotIndex === index) {
             dot.classList.add("active");
           } else {
             dot.classList.remove("active");
@@ -517,7 +586,7 @@
 
       /* ====================== 가이드 렌더링 ====================== */
 
-      function renderGuide() {
+      function renderGuide(selectedQuestions) {
         document.getElementById("questionText").textContent =
           "there are six topics with questions\n\nopen each card and converse about them";
 
@@ -529,14 +598,6 @@
           "love",
           "money",
         ];
-
-        // 각 카테고리별 랜덤 질문 선택
-        const selectedQuestions = {};
-        categories.forEach((cat) => {
-          const questions = GUIDE_QUESTIONS[cat];
-          selectedQuestions[cat] =
-            questions[Math.floor(Math.random() * questions.length)];
-        });
 
         saveToLocal("life_guide_questions", selectedQuestions);
 
@@ -670,6 +731,62 @@
           hideLoading();
         }
       };
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      async function loadOrCreateGuideQuestions() {
+        initRequestId();
+        if (!requestId) {
+          throw new Error("No requestId");
+        }
+
+        const requestRef = ref(rtdb, `match_requests/${requestId}`);
+        const snapshot = await get(requestRef);
+        if (!snapshot.exists()) {
+          throw new Error("match_request not found");
+        }
+
+        const data = snapshot.val() || {};
+        if (data.guide_questions) {
+          return data.guide_questions;
+        }
+
+        const categories = [
+          "life",
+          "time",
+          "travel",
+          "relationship",
+          "love",
+          "money",
+        ];
+
+        if (data.initiator === userId) {
+          const selectedQuestions = {};
+          categories.forEach((cat) => {
+            const questions = GUIDE_QUESTIONS[cat];
+            selectedQuestions[cat] =
+              questions[Math.floor(Math.random() * questions.length)];
+          });
+
+          await update(requestRef, { guide_questions: selectedQuestions });
+          return selectedQuestions;
+        }
+
+        // Receiver waits for initiator to set guide_questions
+        const maxAttempts = 20;
+        for (let i = 0; i < maxAttempts; i += 1) {
+          await sleep(500);
+          const latestSnap = await get(requestRef);
+          const latest = latestSnap.val() || {};
+          if (latest.guide_questions) {
+            return latest.guide_questions;
+          }
+        }
+
+        throw new Error("guide questions not ready");
+      }
     </script>
   </body>
 </html>

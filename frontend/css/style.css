@@ -17,6 +17,14 @@
   --error-red: #ff6b6b;
   --success-green: #4ecb71;
   --border-color: #4a4a4a;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+html {
+  height: 100%;
 }
 
 body {
@@ -33,6 +41,7 @@ body {
   padding: 0; /* 변경: 20px → 0 */
   line-height: 1.6;
   margin: 0;
+  min-height: 100vh;
 }
 
 .container {
@@ -42,7 +51,8 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 156px 20px 30px;
+  padding: calc(156px + var(--safe-top)) 20px
+    calc(30px + var(--safe-bottom));
   box-sizing: border-box;
 }
 
@@ -328,6 +338,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   margin: 0 auto;
+  padding-top: var(--safe-top);
 }
 
 .chat-header {
@@ -348,7 +359,7 @@ a:hover {
 
 .chat-input-area {
   flex-shrink: 0;
-  padding: 16px 20px 30px;
+  padding: 16px 20px calc(30px + var(--safe-bottom));
   background: transparent;
 }
 
@@ -524,7 +535,7 @@ a:hover {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 0px 20px 30px; /* 그대로 유지 */
+  padding: var(--safe-top) 20px calc(30px + var(--safe-bottom)); /* 그대로 유지 */
   text-align: center;
   overflow: hidden;
   justify-content: space-between; /* 추가 */
@@ -713,7 +724,7 @@ a:hover {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 0px 20px 90px;
+  padding: var(--safe-top) 20px calc(90px + var(--safe-bottom));
   font-family: "Merriweather", serif;
 }
 
@@ -729,14 +740,16 @@ a:hover {
   background: var(--bg-card);
   border-radius: 24px;
   padding: 4px;
-  width: fit-content;
+  width: 100%;
+  max-width: 480px;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .tab {
   flex: 1;
-  min-width: 140px;
-  padding: 10px 24px;
+  min-width: 0;
+  padding: 10px 16px;
   background: transparent;
   border: none;
   border-radius: 20px;
@@ -773,7 +786,7 @@ a:hover {
   transform: translateX(-50%);
   width: 100%;
   max-width: 480px;
-  height: 70px;
+  height: calc(70px + var(--safe-bottom));
   background: linear-gradient(
     to top,
     rgba(42, 42, 42, 1) 0%,
@@ -783,7 +796,7 @@ a:hover {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  padding: 0 20px;
+  padding: 0 20px var(--safe-bottom);
   z-index: 100;
 }
 
@@ -823,7 +836,8 @@ a:hover {
 /* 반응형 */
 @media (max-width: 480px) {
   .container {
-    padding: 156px 20px 30px;
+    padding: calc(156px + var(--safe-top)) 20px
+      calc(30px + var(--safe-bottom));
   }
 
   h1 {
@@ -834,5 +848,156 @@ a:hover {
     width: 42px;
     height: 52px;
     font-size: 20px;
+  }
+}
+
+@supports (height: 100svh) {
+  body {
+    min-height: 100svh;
+  }
+
+  .chat-container,
+  .playlist-container {
+    height: 100svh;
+  }
+}
+
+@media (max-width: 420px) {
+  .container {
+    padding: calc(120px + var(--safe-top)) 16px
+      calc(24px + var(--safe-bottom));
+  }
+
+  .brand-text {
+    font-size: 24px;
+    margin-bottom: 28px;
+  }
+
+  h1 {
+    font-size: 26px;
+  }
+
+  h2 {
+    font-size: 20px;
+  }
+
+  p {
+    font-size: 13px;
+  }
+
+  input,
+  select,
+  textarea {
+    padding: 14px 16px;
+    font-size: 15px;
+  }
+
+  button {
+    padding: 14px;
+    font-size: 15px;
+  }
+
+  .code-inputs {
+    gap: 8px;
+  }
+
+  .code-input {
+    width: 40px;
+    height: 48px;
+    font-size: 18px;
+  }
+
+  .date-inputs {
+    gap: 8px;
+  }
+
+  .chat-header {
+    padding: 20px 0 12px;
+    font-size: 16px;
+  }
+
+  .chat-messages {
+    padding: 0 16px;
+  }
+
+  .chat-input-area {
+    padding: 12px 16px calc(20px + var(--safe-bottom));
+  }
+
+  .chat-select {
+    padding: 10px 16px;
+    padding-right: 40px;
+  }
+
+  .chat-send {
+    width: 44px;
+    height: 44px;
+  }
+
+  .playlist-container {
+    padding: calc(0px + var(--safe-top)) 16px
+      calc(20px + var(--safe-bottom));
+  }
+
+  .search-input {
+    height: 50px;
+    font-size: 15px;
+  }
+
+  .track-chip-text {
+    max-width: 220px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .tabs {
+    padding: 3px;
+  }
+
+  .tab {
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+
+  .bottom-nav {
+    height: 64px;
+  }
+
+  .nav-item {
+    height: 44px;
+  }
+}
+
+@media (max-width: 360px) {
+  .container {
+    padding: calc(104px + var(--safe-top)) 14px
+      calc(20px + var(--safe-bottom));
+  }
+
+  .brand-text {
+    font-size: 22px;
+  }
+
+  h1 {
+    font-size: 24px;
+  }
+
+  .code-input {
+    width: 36px;
+    height: 44px;
+    font-size: 16px;
+  }
+}
+
+@media (max-height: 700px) {
+  .container {
+    padding: calc(112px + var(--safe-top)) 16px
+      calc(20px + var(--safe-bottom));
+  }
+
+  .brand-text {
+    margin-bottom: 20px;
   }
 }

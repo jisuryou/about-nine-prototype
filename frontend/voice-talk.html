@@ -18,7 +18,8 @@
         height: 100vh;
         display: flex;
         flex-direction: column;
-        padding: 30px 20px;
+        padding: calc(30px + var(--safe-top)) 20px
+          calc(30px + var(--safe-bottom));
         font-family: "Merriweather", serif;
         justify-content: space-between;
         overflow: hidden;
@@ -157,6 +158,77 @@
         font-size: 16px;
         color: #222;
         white-space: pre-wrap;
+      }
+
+      @supports (height: 100svh) {
+        .voice-container {
+          height: 100svh;
+        }
+      }
+
+      @media (max-width: 420px) {
+        .voice-container {
+          padding: calc(20px + var(--safe-top)) 16px
+            calc(20px + var(--safe-bottom));
+        }
+
+        .voice-image-card img {
+          height: 24vh;
+        }
+
+        .voice-image-label {
+          font-size: 12px;
+          padding: 5px 12px;
+        }
+
+        .voice-timer {
+          font-size: 14px;
+          margin-bottom: 14px;
+        }
+
+        .voice-controls {
+          gap: 24px;
+        }
+
+        .control-btn {
+          width: 44px;
+          height: 44px;
+        }
+
+        .control-btn svg {
+          width: 22px;
+          height: 22px;
+        }
+
+        .life-guide {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .life-card {
+          height: 96px;
+          font-size: 11px;
+        }
+      }
+
+      @media (max-width: 360px) {
+        .voice-image-card img {
+          height: 22vh;
+        }
+
+        .life-card {
+          height: 88px;
+        }
+      }
+
+      @media (max-height: 700px) {
+        .voice-image-card img {
+          height: 21vh;
+        }
+
+        .voice-timer {
+          margin-bottom: 10px;
+        }
       }
     </style>
   </head>
@@ -579,45 +651,48 @@
         console.log(`🎤 음소거: ${isMuted}`);
       };
 
-      window.endCall = async () => {
+      window.endCall = async (options = {}) => {
+        const isRemote = options?.remote === true;
         console.log("=".repeat(50));
         console.log(">>> endCall 호출됨");
         console.log("=".repeat(50));
 
         if (timer) clearInterval(timer);
 
-        // 🔥 서버에 녹화 종료 요청
-        try {
-          console.log("📤 서버에 녹화 종료 요청...");
+        if (!isRemote) {
+          // 🔥 서버에 녹화 종료 요청 (내가 끊었을 때만)
+          try {
+            console.log("📤 서버에 녹화 종료 요청...");
 
-          const response = await fetch("/api/agora/auto-stop-recording", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ request_id: requestId }),
+            const response = await fetch("/api/agora/auto-stop-recording", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ request_id: requestId }),
+            });
+
+            const result = await response.json();
+            console.log("📥 녹화 종료 응답:", result);
+
+            if (result.success) {
+              console.log("✅ 녹화 종료 완료");
+              console.log(`   총 ${result.totalFiles}개 파일 생성됨`);
+            } else {
+              console.log("⚠️ 녹화 종료 실패 또는 녹화 없음:", result.message);
+            }
+          } catch (e) {
+            console.error("❌ 녹화 종료 요청 실패:", e);
+          }
+
+          console.log("📝 Firebase 업데이트 중...");
+
+          await update(ref(rtdb, `match_requests/${requestId}`), {
+            call_ended: true,
+            ended_by: userId,
+            ended_at: Date.now(),
           });
 
-          const result = await response.json();
-          console.log("📥 녹화 종료 응답:", result);
-
-          if (result.success) {
-            console.log("✅ 녹화 종료 완료");
-            console.log(`   총 ${result.totalFiles}개 파일 생성됨`);
-          } else {
-            console.log("⚠️ 녹화 종료 실패 또는 녹화 없음:", result.message);
-          }
-        } catch (e) {
-          console.error("❌ 녹화 종료 요청 실패:", e);
+          console.log("✅ Firebase 업데이트 완료");
         }
-
-        console.log("📝 Firebase 업데이트 중...");
-
-        await update(ref(rtdb, `match_requests/${requestId}`), {
-          call_ended: true,
-          ended_by: userId,
-          ended_at: Date.now(),
-        });
-
-        console.log("✅ Firebase 업데이트 완료");
 
         localAudioTrack?.close();
         if (agoraClient) await agoraClient.leave();
@@ -639,7 +714,7 @@
         }
         if (d?.call_ended && d.ended_by !== userId) {
           console.log("⚠️ 상대방에 의해 통화 종료됨");
-          await window.endCall();
+          await window.endCall({ remote: true });
         }
       });
 

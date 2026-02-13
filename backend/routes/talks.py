@@ -9,6 +9,7 @@ talks.py - 대화 관련 엔드포인트
 from datetime import datetime
 from flask import Blueprint, jsonify, session, request
 from firebase_admin import firestore
+from google.api_core.exceptions import AlreadyExists
 from backend.services.firestore import get_firestore
 from backend.services.rtdb import get_rtdb
 from backend.services.user_profile_service import update_user_embedding, update_user_stats
@@ -205,6 +206,17 @@ def save_history():
     match_request_ref = rtdb.child("match_requests").child(request_id)
     match_request = match_request_ref.get()
     if not match_request:
+        # Fallback: match_request might be cleaned up; reuse existing talk_history if present.
+        db = get_firestore()
+        existing = (
+            db.collection("talk_history")
+            .where("match_request_id", "==", request_id)
+            .limit(1)
+            .stream()
+        )
+        existing_doc = next(existing, None)
+        if existing_doc:
+            return jsonify(success=True, talk_id=existing_doc.id)
         return jsonify(success=False, message="match_request not found"), 404
 
     existing_talk_id = match_request.get("talk_id")
@@ -267,11 +279,19 @@ def save_history():
         match_request_ref.update({"talk_id": talk_id})
         return jsonify(success=True, talk_id=talk_id)
 
-    talk_ref = db.collection("talk_history").document()
-    talk_ref.set(talk_data)
-    match_request_ref.update({"talk_id": talk_ref.id})
+    # Use request_id as deterministic talk_id to avoid duplicates on race.
+    talk_ref = db.collection("talk_history").document(request_id)
+    try:
+        talk_ref.create(talk_data)
+    except AlreadyExists:
+        existing = talk_ref.get()
+        if existing.exists:
+            match_request_ref.update({"talk_id": request_id})
+            return jsonify(success=True, talk_id=request_id)
+        raise
 
-    return jsonify(success=True, talk_id=talk_ref.id, talk=talk_data)
+    match_request_ref.update({"talk_id": request_id})
+    return jsonify(success=True, talk_id=request_id, talk=talk_data)
 
 
 # =========================
@@ -515,12 +535,35 @@ def save_response():
     if not (is_initiator or is_receiver):
         return jsonify(success=False, message="not a participant"), 403
 
-    update_data = {f"go_no_go.{user_id}": choice == "go"}
-
     go_no_go = talk.get("go_no_go") or {}
     merged = {**go_no_go, user_id: (choice == "go")}
 
-    talk_ref.set(update_data, merge=True)
+    # Use update() so dotted field path is treated as nested map, not a literal key.
+    talk_ref.update({f"go_no_go.{user_id}": choice == "go"})
+
+    # Store go/no in RTDB for realtime sync
+    try:
+        rtdb = get_rtdb()
+        if rtdb:
+            request_id = talk.get("match_request_id") or talk_id
+            match_ref = rtdb.child("match_requests").child(request_id)
+            match_ref.child("go_no_go").child(user_id).set(choice == "go")
+            match_ref.child("go_no_go_updated_at").set(int(time.time() * 1000))
+
+            # If both participants responded, clean up match_request
+            match_data = match_ref.get() or {}
+            initiator = match_data.get("initiator")
+            receiver = match_data.get("receiver")
+            go_no_go = match_data.get("go_no_go") or {}
+            if (
+                initiator
+                and receiver
+                and initiator in go_no_go
+                and receiver in go_no_go
+            ):
+                match_ref.delete()
+    except Exception:
+        pass
 
     # Update user stats (only if this is the first response from the user)
     try:
@@ -553,6 +596,38 @@ def save_response():
             )
 
     return jsonify(success=True)
+
+
+# =========================
+# Realtime Go/No status (RTDB)
+# =========================
+@talks_bp.route("/go-no-go/<request_id>", methods=["GET"])
+def get_go_no_go(request_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify(success=False, message="not logged in"), 401
+
+    rtdb = get_rtdb()
+    if not rtdb:
+        return jsonify(success=False, message="rtdb not configured"), 500
+
+    match_request_ref = rtdb.child("match_requests").child(request_id)
+    match_request = match_request_ref.get()
+    if not match_request:
+        return jsonify(success=False, message="match_request not found"), 404
+
+    initiator = match_request.get("initiator")
+    receiver = match_request.get("receiver")
+    if user_id not in [initiator, receiver]:
+        return jsonify(success=False, message="not a participant"), 403
+
+    go_no_go = match_request.get("go_no_go") or {}
+    return jsonify(
+        success=True,
+        go_no_go=go_no_go,
+        participants={"user_a": initiator, "user_b": receiver},
+        updated_at=match_request.get("go_no_go_updated_at"),
+    )
 
 
 # =========================

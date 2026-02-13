@@ -16,7 +16,8 @@
         flex-direction: column;
         align-items: center;
         justify-content: space-between;
-        padding: 256px 20px 30px;
+        padding: calc(256px + var(--safe-top)) 20px
+          calc(30px + var(--safe-bottom));
         font-family: "Merriweather", serif;
         text-align: center;
       }
@@ -59,6 +60,54 @@
         background: linear-gradient(90deg, #ff6ec4, #7873f5);
         transition: width 0.4s ease;
       }
+
+      @supports (height: 100svh) {
+        .end-container {
+          min-height: 100svh;
+        }
+      }
+
+      @media (max-width: 420px) {
+        .end-container {
+          padding: calc(180px + var(--safe-top)) 16px
+            calc(24px + var(--safe-bottom));
+        }
+
+        .end-title {
+          font-size: 22px;
+        }
+
+        .end-duration {
+          font-size: 16px;
+          margin-bottom: 40px;
+        }
+
+        .analysis-progress {
+          margin: -20px auto 30px;
+        }
+      }
+
+      @media (max-width: 360px) {
+        .end-container {
+          padding: calc(150px + var(--safe-top)) 14px
+            calc(20px + var(--safe-bottom));
+        }
+
+        .end-title {
+          font-size: 20px;
+        }
+      }
+
+      @media (max-height: 700px) {
+        .end-container {
+          padding: calc(140px + var(--safe-top)) 16px
+            calc(20px + var(--safe-bottom));
+        }
+
+        .end-duration {
+          margin-bottom: 30px;
+        }
+      }
     </style>
   </head>
 
@@ -91,6 +140,9 @@
       let matchData = null;
       let progressTimer = null;
       let progressValue = 0;
+      let progressStartAt = null;
+      const ANALYSIS_EXPECTED_MS = 45000;
+      const ANALYSIS_MAX_PROGRESS = 95;
       let talkId = null;
 
       /* ================= 초기화 ================= */
@@ -122,14 +174,7 @@
 
           await processAnalysis();
 
-          if (talkId) {
-            try {
-              await remove(ref(rtdb, `match_requests/${requestId}`));
-              console.log("✅ match_request 삭제 완료");
-            } catch (cleanupError) {
-              console.error("❌ match_request 삭제 실패:", cleanupError);
-            }
-          }
+          // NOTE: keep match_request for other participant (cleanup after go/no)
         } catch (e) {
           console.error("❌ 초기화 실패:", e);
           alert("failed to load request");
@@ -201,19 +246,24 @@
         return result;
       }
 
-      function startProgress() {
+      function startProgress(startedAt = null) {
         const el = document.getElementById("analysisProgress");
         const textEl = document.getElementById("analysisText");
         const barEl = document.getElementById("analysisBarFill");
 
         el.classList.remove("hidden");
         progressValue = 0;
+        progressStartAt = startedAt || Date.now();
         textEl.textContent = "analyzing... 0%";
         barEl.style.width = "0%";
 
         progressTimer = setInterval(() => {
-          const increment = progressValue < 70 ? 4 : 1;
-          progressValue = Math.min(95, progressValue + increment);
+          const elapsed = Date.now() - progressStartAt;
+          const ratio = elapsed / ANALYSIS_EXPECTED_MS;
+          progressValue = Math.min(
+            ANALYSIS_MAX_PROGRESS,
+            Math.max(2, Math.floor(ratio * 100))
+          );
           textEl.textContent = `analyzing... ${progressValue}%`;
           barEl.style.width = `${progressValue}%`;
         }, 600);
@@ -240,6 +290,53 @@
         }
       }
 
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      async function fetchTalk() {
+        const res = await apiCall(`/talks/history/${talkId}`);
+        if (!res.success || !res.talk) {
+          throw new Error("talk_history not found");
+        }
+        return res.talk;
+      }
+
+      function isAnalysisComplete(talk) {
+        const score = talk?.analysis?.chemistry_score;
+        return typeof score === "number" && !Number.isNaN(score);
+      }
+
+      function getAnalysisStart(talk) {
+        return (
+          talk?.analysis_started_at ||
+          talk?.analysis?.analyzed_at ||
+          null
+        );
+      }
+
+      async function waitForAnalysis(maxMs = 120000, intervalMs = 2000) {
+        const start = Date.now();
+        while (Date.now() - start < maxMs) {
+          await sleep(intervalMs);
+          const talk = await fetchTalk();
+
+          if (talk?.analysis_status === "failed") {
+            throw new Error("analysis failed");
+          }
+
+          const startedAt = getAnalysisStart(talk);
+          if (startedAt && progressStartAt !== startedAt) {
+            progressStartAt = startedAt;
+          }
+
+          if (isAnalysisComplete(talk)) {
+            return true;
+          }
+        }
+        return false;
+      }
+
       async function processAnalysis() {
         const nextBtn = document.getElementById("nextBtn");
         nextBtn.disabled = true;
@@ -251,12 +348,26 @@
             console.log("✅ talk_history 저장 완료");
           }
 
-          const result = await analyzeTalk();
-          if (!result?.success) {
-            throw new Error(result?.message || "analysis failed");
+          const talk = await fetchTalk();
+          if (isAnalysisComplete(talk)) {
+            stopProgress(true);
+            nextBtn.disabled = false;
+            return;
           }
-          console.log("✅ 분석 완료");
 
+          const startedAt = getAnalysisStart(talk);
+          if (startedAt) {
+            progressStartAt = startedAt;
+          }
+
+          await analyzeTalk();
+
+          const ok = await waitForAnalysis();
+          if (!ok) {
+            throw new Error("analysis timeout");
+          }
+
+          console.log("✅ 분석 완료");
           stopProgress(true);
           nextBtn.disabled = false;
         } catch (e) {

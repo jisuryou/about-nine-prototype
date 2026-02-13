@@ -1,4 +1,6 @@
 from typing import Dict, List, Tuple
+import math
+import random
 
 import numpy as np
 
@@ -21,6 +23,50 @@ def _cosine(a: List[float], b: List[float]) -> float:
         return 0.0
     return float(np.dot(va, vb) / denom)
 
+def _distance_km(lat1, lng1, lat2, lng2) -> float:
+    r = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(dlng / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return r * c
+
+
+def _matches_orientation(orientation, target_gender) -> bool:
+    if not orientation or not target_gender:
+        return False
+
+    orientation = str(orientation).lower()
+    target_gender = str(target_gender).lower()
+
+    if orientation in ["everyone", "all", "all genders", "anyone", "all types of genders"]:
+        return target_gender in ["man", "woman", "non-binary"]
+
+    if "men and women" in orientation:
+        return target_gender in ["man", "woman"]
+
+    if orientation == "men" or "men only" in orientation:
+        return target_gender == "man"
+
+    if orientation == "women" or "women only" in orientation:
+        return target_gender == "woman"
+
+    if "non-binary" == orientation or "non-binary only" in orientation:
+        return target_gender == "non-binary"
+
+    if "men and non-binary" in orientation:
+        return target_gender in ["man", "non-binary"]
+
+    if "women and non-binary" in orientation:
+        return target_gender in ["woman", "non-binary"]
+
+    return False
+
 
 def recommend_for_user(uid: str, top_k: int = 10) -> List[Tuple[str, float]]:
     if not uid:
@@ -33,12 +79,16 @@ def recommend_for_user(uid: str, top_k: int = 10) -> List[Tuple[str, float]]:
 
     me = users.get(uid) or {}
     my_vec = (me.get("embedding") or {}).get("vector")
-    if not my_vec:
-        return []
 
     my_blocked = set(me.get("blocked_users") or [])
+    my_loc = me.get("location") or {}
+    my_gender = me.get("gender")
+    my_age = me.get("age")
+    my_orientation = me.get("sexual_orientation")
+    my_age_pref = me.get("age_preference", {})
 
     scores: List[Tuple[str, float]] = []
+    candidates: List[str] = []
 
     for other_id, user in users.items():
         if other_id == uid:
@@ -48,6 +98,49 @@ def recommend_for_user(uid: str, top_k: int = 10) -> List[Tuple[str, float]]:
         if other_id in my_blocked or uid in other_blocked:
             continue
 
+        if not user.get("onboarding_completed"):
+            continue
+
+        other_loc = user.get("location") or {}
+        if not my_loc or not other_loc:
+            continue
+
+        try:
+            d = _distance_km(
+                float(my_loc.get("lat")),
+                float(my_loc.get("lng")),
+                float(other_loc.get("lat")),
+                float(other_loc.get("lng")),
+            )
+        except Exception:
+            continue
+        if d > 10:
+            continue
+
+        other_gender = user.get("gender")
+        other_age = user.get("age")
+        other_orientation = user.get("sexual_orientation")
+        other_age_pref = user.get("age_preference", {})
+
+        if not other_gender or other_age is None:
+            continue
+
+        if not _matches_orientation(my_orientation, other_gender):
+            continue
+
+        if my_age_pref:
+            if not (my_age_pref.get("min", 0) <= other_age <= my_age_pref.get("max", 100)):
+                continue
+
+        if not _matches_orientation(other_orientation, my_gender):
+            continue
+
+        if other_age_pref:
+            if not (other_age_pref.get("min", 0) <= my_age <= other_age_pref.get("max", 100)):
+                continue
+
+        candidates.append(other_id)
+
         other_vec = (user.get("embedding") or {}).get("vector")
         if not other_vec:
             continue
@@ -55,5 +148,12 @@ def recommend_for_user(uid: str, top_k: int = 10) -> List[Tuple[str, float]]:
         s = _cosine(my_vec, other_vec)
         scores.append((other_id, s))
 
+    if not my_vec:
+        random.shuffle(candidates)
+        return [(uid, 0.0) for uid in candidates[: min(5, len(candidates))]]
+
     scores.sort(key=lambda x: -x[1])
+    if not scores:
+        random.shuffle(candidates)
+        return [(uid, 0.0) for uid in candidates[: min(5, len(candidates))]]
     return scores[:top_k]

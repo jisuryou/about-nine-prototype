@@ -181,6 +181,8 @@ def list_users():
 
     for doc in db.collection("users").stream():
         u = doc.to_dict()
+        if "id" not in u:
+            u["id"] = doc.id
         total_count += 1
 
         # 본인 제외

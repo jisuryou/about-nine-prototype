@@ -5,6 +5,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from backend.services.firestore import get_firestore
+from firebase_admin import firestore
 from backend.services.chemistry_model import ChemistryModel
 from backend.services.embedding_service import EmbeddingService
 from backend.services.user_profile_service import update_user_embedding
@@ -235,6 +236,17 @@ class AnalysisService:
                 return {"success": False, "message": "talk_history not found", "talk_id": talk_id}
 
             talk = snap.to_dict() or {}
+            existing_analysis = talk.get("analysis") or {}
+            if isinstance(existing_analysis, dict) and existing_analysis.get("chemistry_score") is not None:
+                return {"success": True, "talk_id": talk_id, "analysis": existing_analysis, "status": "complete"}
+
+            if talk.get("analysis_status") == "running":
+                return {"success": True, "talk_id": talk_id, "status": "running"}
+
+            try:
+                talk_ref.update({"analysis_status": "running", "analysis_started_at": _now_ms()})
+            except Exception:
+                pass
             participants = _participants_from_talk(talk)
 
             # 1) Ensure conversation exists (build if missing)
@@ -297,6 +309,7 @@ class AnalysisService:
                         "analysis_error": err_msg,
                         "analysis_trace": err_trace,
                         "analysis_failed_at": _now_ms(),
+                        "analysis_status": "failed",
                     }
                 )
             except Exception:
@@ -323,6 +336,13 @@ class AnalysisService:
                 talk_ref.update({"analysis_warning": "conversation_empty", "analysis_built_at": _now_ms()})
             except Exception:
                 pass
+        else:
+            # Clear stale warning if conversation is now available
+            try:
+                if talk.get("analysis_warning") == "conversation_empty":
+                    talk_ref.update({"analysis_warning": firestore.DELETE_FIELD})
+            except Exception:
+                pass
 
         # 2) Run analyzers
         try:
@@ -341,7 +361,12 @@ class AnalysisService:
                 call_id=talk_id,
             )
         except Exception as e:
-            talk_ref.update({"analysis_error": str(e), "analysis_failed_at": _now_ms()})
+            try:
+                talk_ref.update(
+                    {"analysis_error": str(e), "analysis_failed_at": _now_ms(), "analysis_status": "failed"}
+                )
+            except Exception:
+                pass
             return {"success": False, "message": "analyzer failed", "error": str(e), "talk_id": talk_id}
 
         feats: Dict[str, float] = {
@@ -358,7 +383,16 @@ class AnalysisService:
         try:
             chemistry_score = float(self.model.predict(feats))
         except Exception as e:
-            talk_ref.update({"analysis_error": f"chemistry_model: {e}", "analysis_failed_at": _now_ms()})
+            try:
+                talk_ref.update(
+                    {
+                        "analysis_error": f"chemistry_model: {e}",
+                        "analysis_failed_at": _now_ms(),
+                        "analysis_status": "failed",
+                    }
+                )
+            except Exception:
+                pass
             return {"success": False, "message": "chemistry model failed", "error": str(e), "talk_id": talk_id}
 
         analysis: Dict[str, Any] = {
@@ -390,7 +424,13 @@ class AnalysisService:
         go_no_go = _go_no_go_from_talk(talk)
 
         # 4) Persist analysis
-        talk_ref.update({"analysis": analysis})
+        talk_ref.update(
+            {
+                "analysis": analysis,
+                "analysis_status": "complete",
+                "analysis_completed_at": _now_ms(),
+            }
+        )
 
         # 5) Update user embeddings (for recommendation)
         # Only update for users with explicit go/no labels.

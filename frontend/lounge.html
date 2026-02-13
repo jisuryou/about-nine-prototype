@@ -286,7 +286,12 @@
       async function buildAIMatch() {
         try {
           const res = await apiCall("/match/recommend");
-          aiUsers = res.users || [];
+          const list = Array.isArray(res)
+            ? res
+            : Array.isArray(res?.users)
+              ? res.users
+              : Object.values(res?.users || {});
+          aiUsers = list.slice(0, 5);
           renderUsers(aiUsers, "aiUserList", "ai");
         } catch (error) {
           console.error("Failed to load ai match:", error);
@@ -297,9 +302,19 @@
 
       /* ====================== 🔥 온라인 상태 확인 ====================== */
 
+      function getUserId(u) {
+        return u?.id || u?.user_id || u?.uid || u?.userId || null;
+      }
+
+      const PRESENCE_TTL_MS = 90000;
+
       function isOnline(userId) {
+        if (!userId) return false;
         const presence = presenceData[userId];
-        return presence && presence.online === true;
+        if (!presence || presence.online !== true) return false;
+        const updatedAt = Number(presence.updated_at || 0);
+        if (!updatedAt) return false;
+        return Date.now() - updatedAt <= PRESENCE_TTL_MS;
       }
 
       /* ====================== 🔥 렌더 (정렬 + 비활성화) ====================== */
@@ -324,8 +339,8 @@
           : "pick whoever feels right";
 
         const sortedList = [...list].sort((a, b) => {
-          const aOnline = isOnline(a.id);
-          const bOnline = isOnline(b.id);
+          const aOnline = isOnline(getUserId(a));
+          const bOnline = isOnline(getUserId(b));
           if (aOnline && !bOnline) return -1;
           if (!aOnline && bOnline) return 1;
           return 0;
@@ -333,13 +348,14 @@
 
         const cardsHtml = sortedList
           .map((u) => {
-            const online = isOnline(u.id);
+            const uid = getUserId(u);
+            const online = isOnline(uid);
 
             return `
       <div class="user-card-wrapper ${online ? "" : "offline"}">
         <div 
           class="card"
-          ${!isAi ? `data-id="${u.id}" style="cursor:pointer; padding-right:120px;"` : `style="padding-right:120px;"`}
+          ${!isAi ? `data-id="${uid}" style="cursor:pointer; padding-right:120px;"` : `style="padding-right:120px;"`}
         >
           <div style="flex:1;">
             <div style="display:flex;align-items:center;gap:6px;">
@@ -359,7 +375,7 @@
           </div>
         </div>
 
-        <button class="primary user-card-button" data-user-id="${u.id}" ${
+        <button class="primary user-card-button" data-user-id="${uid}" ${
           online ? "" : "disabled"
         }>
           start talk
@@ -379,7 +395,7 @@
           el.querySelectorAll(".card").forEach((card) => {
             card.onclick = (e) => {
               const id = card.dataset.id;
-              const user = sortedList.find((x) => x.id === id);
+              const user = sortedList.find((x) => getUserId(x) === id);
               openPlaylist(user);
             };
           });
@@ -389,7 +405,7 @@
         el.querySelectorAll(".user-card-button").forEach((btn) => {
           btn.onclick = async (e) => {
             const id = btn.dataset.userId;
-            const user = sortedList.find((x) => x.id === id);
+            const user = sortedList.find((x) => getUserId(x) === id);
             await startMatchRequest(user);
           };
         });
@@ -405,7 +421,7 @@
 
           // 🔥 Backend API로 round 계산 (양쪽 talk_history 확인)
           const roundRes = await apiCall("/talks/calculate-round", "POST", {
-            partner_id: partner.id,
+            partner_id: getUserId(partner),
           });
 
           hideLoading();
@@ -442,7 +458,7 @@
 
           const matchData = {
             initiator: userId,
-            receiver: partner.id,
+            receiver: getUserId(partner),
             status: "waiting",
             round: round,
             topic: topic,
@@ -567,6 +583,11 @@
         await updateLocation();
         listenPresence();
         await loadUsers();
+        if (isAIMatchTime()) {
+          switchTab("ai");
+        } else {
+          switchTab("lounge");
+        }
         listenMatchRequests();
       };
     </script>
