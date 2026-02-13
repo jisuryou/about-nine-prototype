@@ -4,8 +4,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from firebase_admin import firestore
-
+from backend.services.firestore import get_firestore
 from backend.services.chemistry_model import ChemistryModel
 from backend.services.embedding_service import EmbeddingService
 from backend.services.user_profile_service import update_user_embedding
@@ -27,7 +26,8 @@ from backend.services.analysis.analyzers.preference_analyzer import PreferenceAn
 from backend.services.analysis.analyzers.pitch_analyzer import PitchAnalyzer
 
 
-db = firestore.client()
+def _get_db():
+    return get_firestore()
 
 
 # -----------------------------
@@ -225,6 +225,7 @@ class AnalysisService:
         self.pitch = PitchAnalyzer()
 
     def analyze_talk_pipeline(self, talk_id: str) -> Dict[str, Any]:
+        db = _get_db()
         talk_ref = db.collection("talk_history").document(talk_id)
         conversation_list = None
         speaker_wavs = None

@@ -1,9 +1,12 @@
 from typing import Dict, List, Tuple
 
 import numpy as np
-from firebase_admin import firestore
 
-db = firestore.client()
+from backend.services.firestore import get_firestore
+
+
+def _get_db():
+    return get_firestore()
 
 
 def _cosine(a: List[float], b: List[float]) -> float:
@@ -23,6 +26,7 @@ def recommend_for_user(uid: str, top_k: int = 10) -> List[Tuple[str, float]]:
     if not uid:
         return []
 
+    db = _get_db()
     users: Dict[str, Dict] = {
         d.id: (d.to_dict() or {}) for d in db.collection("users").stream()
     }

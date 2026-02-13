@@ -5,8 +5,10 @@ import numpy as np
 from firebase_admin import firestore
 
 from backend.services.embedding_service import normalize_vector
+from backend.services.firestore import get_firestore
 
-db = firestore.client()
+def _get_db():
+    return get_firestore()
 
 
 def _now_ms() -> int:
@@ -33,6 +35,7 @@ def update_user_embedding(uid: str, pair_embedding, go: Optional[bool], alpha: f
     if not pair_vec:
         return False
 
+    db = _get_db()
     ref = db.collection("users").document(uid)
     snap = ref.get()
     data = snap.to_dict() or {}
@@ -73,6 +76,7 @@ def update_user_stats(uid: str, is_go: bool) -> bool:
     if not uid:
         return False
 
+    db = _get_db()
     ref = db.collection("users").document(uid)
     txn = db.transaction()
 
