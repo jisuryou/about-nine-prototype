@@ -94,31 +94,110 @@
         color: var(--text-primary);
       }
 
-      .modal-tracks {
-        max-height: 300px;
-        overflow-y: auto;
-        margin-bottom: 20px;
+      .taste-signature {
+        position: relative;
+        height: 220px;
+        border-radius: 18px;
+        overflow: hidden;
+        background: #1f1f1f;
+        margin-bottom: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
       }
 
-      .modal-track-item {
-        padding: 12px 0;
-        border-bottom: 1px solid var(--border-color);
+      .taste-signature::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 18px;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+        pointer-events: none;
+      }
+
+      .taste-gradient {
+        position: absolute;
+        inset: -35%;
+        background:
+          radial-gradient(
+            circle at 18% 20%,
+            var(--sig-c1, #f08a5d) 0%,
+            rgba(0, 0, 0, 0) 55%
+          ),
+          radial-gradient(
+            circle at 78% 30%,
+            var(--sig-c2, #6a7ff2) 0%,
+            rgba(0, 0, 0, 0) 60%
+          ),
+          radial-gradient(
+            circle at 40% 80%,
+            var(--sig-c3, #f6d365) 0%,
+            rgba(0, 0, 0, 0) 65%
+          );
+        filter: blur(12px) saturate(135%);
+        animation: tasteFloat 14s ease-in-out infinite;
+      }
+
+      .taste-overlay {
+        position: relative;
+        z-index: 1;
+        height: 100%;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 6px;
+        background: linear-gradient(
+          180deg,
+          rgba(0, 0, 0, 0) 0%,
+          rgba(0, 0, 0, 0.5) 70%,
+          rgba(0, 0, 0, 0.72) 100%
+        );
+      }
+
+      .taste-title {
         font-size: 14px;
+        letter-spacing: 0.4px;
+        text-transform: lowercase;
+        color: rgba(255, 255, 255, 0.9);
+        font-weight: 600;
       }
 
-      .modal-track-item:last-child {
-        border-bottom: none;
-      }
-
-      .modal-track-name {
-        color: var(--text-primary);
+      .taste-words {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.7);
         font-weight: 500;
       }
 
-      .modal-track-artist {
-        color: var(--text-secondary);
+      .preview-status {
         font-size: 12px;
-        margin-top: 2px;
+        color: rgba(255, 255, 255, 0.65);
+        text-align: center;
+        margin-top: 6px;
+      }
+
+      .taste-spark {
+        position: absolute;
+        right: 14px;
+        top: 14px;
+        font-size: 11px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: rgba(255, 255, 255, 0.85);
+        text-transform: lowercase;
+        letter-spacing: 0.3px;
+      }
+
+      @keyframes tasteFloat {
+        0% {
+          transform: translate3d(-2%, -1%, 0) scale(1);
+        }
+        50% {
+          transform: translate3d(2%, 2%, 0) scale(1.04);
+        }
+        100% {
+          transform: translate3d(-2%, -1%, 0) scale(1);
+        }
       }
     </style>
   </head>
@@ -157,7 +236,16 @@
     <div class="modal" id="playlistModal">
       <div class="modal-content">
         <h3 id="modalName"></h3>
-        <div id="modalTracks" class="modal-tracks"></div>
+        <div class="taste-signature" id="tasteSignature">
+          <div class="taste-gradient"></div>
+          <div class="taste-spark">taste signature</div>
+          <div class="taste-overlay">
+            <div class="taste-title" id="tasteTitle"></div>
+            <div class="taste-words" id="tasteWords"></div>
+          </div>
+        </div>
+        <div class="preview-status" id="previewStatus"></div>
+        <audio id="tastePreviewAudio" preload="auto"></audio>
       </div>
     </div>
 
@@ -531,6 +619,113 @@
 
       /* ====================== playlist modal ====================== */
 
+      const TASTE_WORDS = [
+        "hazy",
+        "luminous",
+        "velvet",
+        "warm",
+        "noir",
+        "airy",
+        "crisp",
+        "amber",
+        "glossy",
+        "moody",
+        "silk",
+        "sunlit",
+        "deep",
+        "soft",
+        "neon",
+        "drift",
+        "mellow",
+        "bold",
+        "dusty",
+        "bright",
+      ];
+
+      function hashString(value) {
+        let hash = 2166136261;
+        for (let i = 0; i < value.length; i += 1) {
+          hash ^= value.charCodeAt(i);
+          hash +=
+            (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+        }
+        return hash >>> 0;
+      }
+
+      function pickTasteWords(seed) {
+        const words = [];
+        let cursor = seed;
+        while (words.length < 3) {
+          const word = TASTE_WORDS[cursor % TASTE_WORDS.length];
+          if (!words.includes(word)) words.push(word);
+          cursor = Math.floor(cursor / 7) + 13;
+        }
+        return words;
+      }
+
+      function signatureColors(seed) {
+        const base = seed % 360;
+        const c1 = `hsl(${base}, 70%, 60%)`;
+        const c2 = `hsl(${(base + 50 + (seed % 25)) % 360}, 74%, 54%)`;
+        const c3 = `hsl(${(base + 210) % 360}, 68%, 52%)`;
+        return [c1, c2, c3];
+      }
+
+      const previewAudio = document.getElementById("tastePreviewAudio");
+      const previewStatusEl = document.getElementById("previewStatus");
+      let previewQueue = [];
+      let previewIndex = 0;
+
+      function extractPreviewUrls(tracks) {
+        return (tracks || [])
+          .map((track) => {
+            return (
+              track.preview_url ||
+              track.previewUrl ||
+              track.preview ||
+              track.preview_url_30 ||
+              track.audio_url ||
+              track.audioUrl ||
+              ""
+            );
+          })
+          .filter((url) => typeof url === "string" && url.trim() !== "");
+      }
+
+      function updatePreviewStatus() {
+        if (!previewQueue.length) {
+          previewStatusEl.textContent = "no preview available";
+          return;
+        }
+        previewStatusEl.textContent = "";
+      }
+
+      function playPreviewAt(index) {
+        if (!previewQueue.length) return;
+        previewIndex = index % previewQueue.length;
+        previewAudio.src = previewQueue[previewIndex];
+        updatePreviewStatus();
+        previewAudio
+          .play()
+          .catch(() => {
+            previewStatusEl.textContent = "tap to play preview";
+          });
+      }
+
+      previewAudio.addEventListener("ended", () => {
+        if (!previewQueue.length) return;
+        setTimeout(() => {
+          playPreviewAt(previewIndex + 1);
+        }, 300);
+      });
+
+      document
+        .getElementById("tasteSignature")
+        .addEventListener("click", () => {
+          if (!previewQueue.length) return;
+          playPreviewAt(previewIndex);
+        });
+
       function openPlaylist(u) {
         selectedUser = u;
 
@@ -538,16 +733,26 @@
         document.getElementById("modalName").innerText =
           firstName + "'s playlist";
 
-        document.getElementById("modalTracks").innerHTML = (u.playlist || [])
-          .map(
-            (t) => `
-      <div class="modal-track-item">
-        <div class="modal-track-name">${t.name}</div>
-        <div class="modal-track-artist">${t.artist}</div>
-      </div>
-    `,
-          )
+        const playlistSeed = (u.playlist || [])
+          .map((track) => `${track.name || ""}${track.artist || ""}`)
           .join("");
+        const signatureSeed = hashString(`${firstName}${playlistSeed}`);
+        const [c1, c2, c3] = signatureColors(signatureSeed);
+        const signatureEl = document.getElementById("tasteSignature");
+        signatureEl.style.setProperty("--sig-c1", c1);
+        signatureEl.style.setProperty("--sig-c2", c2);
+        signatureEl.style.setProperty("--sig-c3", c3);
+        document.getElementById("tasteTitle").innerText = `${firstName}'s taste`;
+        document.getElementById("tasteWords").innerText = pickTasteWords(
+          signatureSeed,
+        ).join(" · ");
+
+        previewQueue = extractPreviewUrls(u.playlist || []);
+        previewIndex = 0;
+        updatePreviewStatus();
+        if (previewQueue.length) {
+          playPreviewAt(0);
+        }
 
         document.getElementById("playlistModal").classList.add("active");
       }
@@ -555,6 +760,10 @@
       document.getElementById("playlistModal").onclick = (e) => {
         // 모달 배경만 클릭했을 때만 닫기
         if (e.target.id === "playlistModal") {
+          previewAudio.pause();
+          previewAudio.removeAttribute("src");
+          previewQueue = [];
+          previewIndex = 0;
           document.getElementById("playlistModal").classList.remove("active");
         }
       };
@@ -562,6 +771,10 @@
       // 또는 ESC 키로도 닫을 수 있게
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
+          previewAudio.pause();
+          previewAudio.removeAttribute("src");
+          previewQueue = [];
+          previewIndex = 0;
           document.getElementById("playlistModal").classList.remove("active");
         }
       });
