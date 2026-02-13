@@ -8,7 +8,6 @@
     <script type="module" src="js/firebase.js"></script>
 
     <style>
-      /* 최소한의 추가 스타일만 */
       .end-container {
         width: 100%;
         max-width: 480px;
@@ -77,9 +76,6 @@
       </div>
       <button id="nextBtn" class="primary" onclick="handleNext()" disabled>
         next
-      </button>
-      <button id="retryBtn" class="secondary hidden" onclick="retryAnalysis()">
-        retry analysis
       </button>
     </div>
 
@@ -227,7 +223,6 @@
         const el = document.getElementById("analysisProgress");
         const textEl = document.getElementById("analysisText");
         const barEl = document.getElementById("analysisBarFill");
-        const retryBtn = document.getElementById("retryBtn");
 
         if (progressTimer) clearInterval(progressTimer);
         progressTimer = null;
@@ -236,22 +231,18 @@
           progressValue = 100;
           textEl.textContent = "analysis complete 100%";
           barEl.style.width = "100%";
-          retryBtn.classList.add("hidden");
           setTimeout(() => {
             el.classList.add("hidden");
           }, 600);
         } else {
           textEl.textContent = "analysis failed. please try again.";
           barEl.style.width = `${progressValue}%`;
-          retryBtn.classList.remove("hidden");
         }
       }
 
       async function processAnalysis() {
         const nextBtn = document.getElementById("nextBtn");
-        const retryBtn = document.getElementById("retryBtn");
         nextBtn.disabled = true;
-        retryBtn.classList.add("hidden");
         startProgress();
 
         try {
@@ -274,10 +265,6 @@
           nextBtn.disabled = false;
         }
       }
-
-      window.retryAnalysis = async () => {
-        await processAnalysis();
-      };
     </script>
   </body>
 </html>

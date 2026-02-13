@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, session
 from backend.services.analysis_service import analyze_talk_pipeline
 from backend.services.recommend_service import recommend_for_user
+from backend.services.firestore import get_firestore
 
 match_bp = Blueprint("match", __name__, url_prefix="/api/match")
 
@@ -27,4 +28,14 @@ def recommend():
     if not uid:
         return jsonify(success=False, message="not logged in"), 401
     users = recommend_for_user(uid)
-    return jsonify(users=[u for u,_ in users])
+    db = get_firestore()
+    results = []
+    for user_id, _score in users:
+        doc = db.collection("users").document(user_id).get()
+        if not doc.exists:
+            continue
+        data = doc.to_dict() or {}
+        if "id" not in data:
+            data["id"] = doc.id
+        results.append(data)
+    return jsonify(users=results)

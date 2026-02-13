@@ -67,3 +67,40 @@ def update_user_embedding(uid: str, pair_embedding, go: Optional[bool], alpha: f
         merge=True,
     )
     return True
+
+
+def update_user_stats(uid: str, is_go: bool) -> bool:
+    if not uid:
+        return False
+
+    ref = db.collection("users").document(uid)
+    txn = db.transaction()
+
+    @firestore.transactional
+    def _update(transaction):
+        snap = ref.get(transaction=transaction)
+        data = snap.to_dict() or {}
+        stats = data.get("stats") or {}
+        talk_count = int(stats.get("talk_count") or 0)
+        go_count = int(stats.get("go_count") or 0)
+
+        talk_count += 1
+        if is_go:
+            go_count += 1
+
+        go_rate = (go_count / talk_count) if talk_count else 0.0
+
+        transaction.set(
+            ref,
+            {
+                "stats": {
+                    "talk_count": talk_count,
+                    "go_count": go_count,
+                    "go_rate": go_rate,
+                }
+            },
+            merge=True,
+        )
+
+    _update(txn)
+    return True

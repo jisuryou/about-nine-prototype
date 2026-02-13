@@ -48,6 +48,8 @@ PLAYLIST = [
     {"id": "7", "name": "As It Was", "artist": "Harry Styles", "image": "https://i.ytimg.com/vi/H5v3kku4y6Q/hqdefault.jpg", "preview": "https://www.youtube.com/watch?v=H5v3kku4y6Q"},
 ]
 
+EMBEDDING_DIM = 128
+
 
 def random_loc():
     """서울 중심 ± 5km"""
@@ -70,6 +72,13 @@ def random_birthdate(age):
 def random_phone():
     """랜덤 한국 전화번호"""
     return f"+8210{random.randint(10000000, 99999999)}"
+
+def random_embedding(dim: int = EMBEDDING_DIM):
+    values = [random.gauss(0, 1) for _ in range(dim)]
+    norm = sum(v * v for v in values) ** 0.5
+    if norm == 0:
+        return values
+    return [v / norm for v in values]
 
 
 def create_user():
@@ -128,6 +137,19 @@ def create_user():
         "onboarding_profile": onboarding_profile,
         "onboarding_completed": True,
         "onboarding_updated_at": datetime.utcnow().isoformat(),
+
+        # 추천용 임베딩
+        "embedding": {
+            "vector": random_embedding(),
+            "dim": EMBEDDING_DIM,
+            "updated_at": int(datetime.utcnow().timestamp() * 1000),
+        },
+
+        # 간단 통계
+        "stats": {
+            "talk_count": 0,
+            "go_rate": 0.0,
+        },
     }
 
     db_fs.collection("users").document(uid).set(data)

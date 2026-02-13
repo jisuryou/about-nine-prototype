@@ -698,9 +698,16 @@
             const data = res.talk;
 
             const isInitiator = talkData.participants.user_a === userId;
-            const partnerResponse = isInitiator
-              ? data.receiver_response
-              : data.initiator_response;
+            const partnerId = isInitiator
+              ? talkData.participants.user_b
+              : talkData.participants.user_a;
+            const goNoGo = data.go_no_go || {};
+            const partnerResponse =
+              partnerId && Object.prototype.hasOwnProperty.call(goNoGo, partnerId)
+                ? goNoGo[partnerId]
+                  ? "go"
+                  : "no"
+                : null;
 
             if (partnerResponse) {
               clearInterval(pollInterval);

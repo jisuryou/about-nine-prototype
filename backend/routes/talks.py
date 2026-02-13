@@ -11,7 +11,7 @@ from flask import Blueprint, jsonify, session, request
 from firebase_admin import firestore
 from backend.services.firestore import get_firestore
 from backend.services.rtdb import get_rtdb
-from backend.services.user_profile_service import update_user_embedding
+from backend.services.user_profile_service import update_user_embedding, update_user_stats
 from backend.utils.request import get_json
 import random
 import os
@@ -521,6 +521,13 @@ def save_response():
     merged = {**go_no_go, user_id: (choice == "go")}
 
     talk_ref.set(update_data, merge=True)
+
+    # Update user stats (only if this is the first response from the user)
+    try:
+        if user_id not in go_no_go:
+            update_user_stats(user_id, is_go=(choice == "go"))
+    except Exception:
+        pass
 
     # Update user embedding if analysis already exists
     try:
