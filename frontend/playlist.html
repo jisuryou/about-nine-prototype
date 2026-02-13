@@ -13,6 +13,13 @@
       flex: 1;
       color: var(--text-primary);
     }
+
+    .empty-results {
+      text-align: center;
+      padding: 20px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
   </style>
   <body>
     <div class="playlist-container">
@@ -99,6 +106,11 @@
       /* 결과 렌더링 */
       function renderResults(list) {
         results.innerHTML = "";
+        if (!list.length) {
+          results.innerHTML =
+            "<div class='empty-results'>no results. try another query.</div>";
+          return;
+        }
         list.forEach((t) => {
           const d = document.createElement("div");
           d.className = "card";

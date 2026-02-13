@@ -1,6 +1,11 @@
+import base64
+import os
 import random
+import time
 import uuid
 from datetime import datetime, timedelta
+
+import requests
 import firebase_admin
 from firebase_admin import firestore, db, credentials
 
@@ -38,15 +43,123 @@ MARIJUANA_OPTIONS = ["yes", "no"]
 FIRST = ["Alex", "Sam", "Chris", "Jamie", "Taylor", "Jordan", "Casey", "Riley", "Morgan", "Lee"]
 LAST = ["Kim", "Park", "Choi", "Lee", "Han", "Jung", "Song", "Kang", "Shin", "Yoon"]
 
-PLAYLIST = [
-    {"id": "1", "name": "Blinding Lights", "artist": "The Weeknd", "image": "https://i.ytimg.com/vi/4NRXx6U8ABQ/hqdefault.jpg", "preview": "https://www.youtube.com/watch?v=4NRXx6U8ABQ"},
-    {"id": "2", "name": "Hype Boy", "artist": "NewJeans", "image": "https://i.ytimg.com/vi/11cta61wi0g/hqdefault.jpg", "preview": "https://www.youtube.com/watch?v=11cta61wi0g"},
-    {"id": "3", "name": "Shape of You", "artist": "Ed Sheeran", "image": "https://i.ytimg.com/vi/JGwWNGJdvx8/hqdefault.jpg", "preview": "https://www.youtube.com/watch?v=JGwWNGJdvx8"},
-    {"id": "4", "name": "Seven", "artist": "Jung Kook", "image": "https://i.ytimg.com/vi/QU9c0053UAU/hqdefault.jpg", "preview": "https://www.youtube.com/watch?v=QU9c0053UAU"},
-    {"id": "5", "name": "Stay", "artist": "Post Malone", "image": "https://i.ytimg.com/vi/kTJczUoc26U/hqdefault.jpg", "preview": "https://www.youtube.com/watch?v=kTJczUoc26U"},
-    {"id": "6", "name": "Anti-Hero", "artist": "Taylor Swift", "image": "https://i.ytimg.com/vi/b1kbLwvqugk/hqdefault.jpg", "preview": "https://www.youtube.com/watch?v=b1kbLwvqugk"},
-    {"id": "7", "name": "As It Was", "artist": "Harry Styles", "image": "https://i.ytimg.com/vi/H5v3kku4y6Q/hqdefault.jpg", "preview": "https://www.youtube.com/watch?v=H5v3kku4y6Q"},
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+SPOTIFY_MARKET = os.getenv("SPOTIFY_MARKET", "US")
+
+SPOTIFY_SEED_QUERIES = [
+    {"name": "Blinding Lights", "artist": "The Weeknd", "query": "Blinding Lights The Weeknd"},
+    {"name": "Hype Boy", "artist": "NewJeans", "query": "Hype Boy NewJeans"},
+    {"name": "Shape of You", "artist": "Ed Sheeran", "query": "Shape of You Ed Sheeran"},
+    {"name": "Seven", "artist": "Jung Kook", "query": "Seven Jung Kook"},
+    {"name": "Stay", "artist": "Post Malone", "query": "Stay Post Malone"},
+    {"name": "Anti-Hero", "artist": "Taylor Swift", "query": "Anti-Hero Taylor Swift"},
+    {"name": "As It Was", "artist": "Harry Styles", "query": "As It Was Harry Styles"},
 ]
+
+_spotify_token = None
+_spotify_token_expires_at = 0
+
+
+def get_spotify_token():
+    global _spotify_token, _spotify_token_expires_at
+
+    if _spotify_token and time.time() < _spotify_token_expires_at - 30:
+        return _spotify_token
+
+    if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
+        return None
+
+    auth = f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}"
+    encoded = base64.b64encode(auth.encode("utf-8")).decode("utf-8")
+
+    try:
+        r = requests.post(
+            "https://accounts.spotify.com/api/token",
+            data={"grant_type": "client_credentials"},
+            headers={"Authorization": f"Basic {encoded}"},
+            timeout=5,
+        )
+        r.raise_for_status()
+        data = r.json()
+        _spotify_token = data.get("access_token")
+        expires_in = data.get("expires_in", 3600)
+        _spotify_token_expires_at = time.time() + int(expires_in)
+        return _spotify_token
+    except Exception as e:
+        print("🔥 Spotify token error:", e)
+        return None
+
+
+def fetch_spotify_track(query):
+    token = get_spotify_token()
+    if not token:
+        return None
+
+    try:
+        r = requests.get(
+            "https://api.spotify.com/v1/search",
+            params={
+                "q": query,
+                "type": "track",
+                "limit": 5,
+                "market": SPOTIFY_MARKET,
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=5,
+        )
+        r.raise_for_status()
+        items = r.json().get("tracks", {}).get("items", [])
+    except Exception as e:
+        print("🔥 Spotify search error:", e)
+        return None
+
+    for it in items:
+        preview_url = it.get("preview_url")
+        if not preview_url:
+            continue
+
+        album_images = it.get("album", {}).get("images", [])
+        image_url = album_images[0]["url"] if album_images else ""
+        artists = ", ".join([a.get("name", "") for a in it.get("artists", [])])
+
+        return {
+            "id": it.get("id"),
+            "uri": it.get("uri"),
+            "name": it.get("name"),
+            "artist": artists,
+            "image": image_url,
+            "preview_url": preview_url,
+        }
+
+    return None
+
+
+def build_seed_playlist():
+    tracks = []
+    for seed in SPOTIFY_SEED_QUERIES:
+        track = fetch_spotify_track(seed["query"])
+        if track:
+            tracks.append(track)
+
+    if tracks:
+        return tracks
+
+    print("⚠️ Spotify preview unavailable; seeding without previews.")
+    return [
+        {
+            "id": str(i + 1),
+            "uri": "",
+            "name": seed["name"],
+            "artist": seed["artist"],
+            "image": "",
+            "preview_url": "",
+        }
+        for i, seed in enumerate(SPOTIFY_SEED_QUERIES)
+    ]
+
+
+PLAYLIST = build_seed_playlist()
 
 EMBEDDING_DIM = 128
 

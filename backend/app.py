@@ -39,6 +39,7 @@ from backend.routes.agora import agora_bp
 from backend.routes.talks import talks_bp
 from backend.routes.match import match_bp
 from backend.routes.debug import debug_bp
+from backend.routes.spotify import spotify_bp, spotify_auth_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(users_bp)
@@ -47,6 +48,8 @@ app.register_blueprint(onboarding_bp)
 app.register_blueprint(agora_bp)
 app.register_blueprint(talks_bp)
 app.register_blueprint(match_bp)
+app.register_blueprint(spotify_bp)
+app.register_blueprint(spotify_auth_bp)
 
 if DEBUG:
     app.register_blueprint(debug_bp)
@@ -96,6 +99,9 @@ def index():
 
 if __name__ == "__main__":
     port_env = os.environ.get("PORT")
-    # Always prefer Render's $PORT; fall back to 10000 for production-like hosting.
-    port = int(port_env) if port_env else 10000
+    # Prefer Render's $PORT; use 5001 locally, 10000 as prod-like fallback.
+    if port_env:
+        port = int(port_env)
+    else:
+        port = 5001 if DEBUG else 10000
     app.run(host="0.0.0.0", port=port, debug=DEBUG)

@@ -88,12 +88,6 @@
         max-width: 400px;
       }
 
-      .modal-content h3 {
-        font-size: 20px;
-        margin-bottom: 20px;
-        color: var(--text-primary);
-      }
-
       .taste-signature {
         position: relative;
         height: 220px;
@@ -144,7 +138,7 @@
         display: flex;
         flex-direction: column;
         justify-content: flex-end;
-        gap: 6px;
+        gap: 8px;
         background: linear-gradient(
           180deg,
           rgba(0, 0, 0, 0) 0%,
@@ -161,12 +155,6 @@
         font-weight: 600;
       }
 
-      .taste-words {
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.7);
-        font-weight: 500;
-      }
-
       .preview-status {
         font-size: 12px;
         color: rgba(255, 255, 255, 0.65);
@@ -174,18 +162,45 @@
         margin-top: 6px;
       }
 
-      .taste-spark {
-        position: absolute;
-        right: 14px;
-        top: 14px;
+      .track-marquee {
+        position: relative;
+        height: 18px;
+        overflow: hidden;
+        white-space: nowrap;
+        color: rgba(255, 255, 255, 0.75);
         font-size: 11px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        background: rgba(0, 0, 0, 0.35);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        color: rgba(255, 255, 255, 0.85);
-        text-transform: lowercase;
-        letter-spacing: 0.3px;
+        letter-spacing: 0.2px;
+        mask-image: linear-gradient(
+          90deg,
+          transparent,
+          #000 12%,
+          #000 88%,
+          transparent
+        );
+      }
+
+      .track-marquee-inner {
+        display: inline-block;
+        padding-left: 100%;
+        animation: marqueeScroll 18s linear infinite;
+      }
+
+      .track-marquee.paused .track-marquee-inner {
+        animation-play-state: paused;
+      }
+
+      @keyframes marqueeScroll {
+        0% {
+          transform: translateX(0);
+        }
+        100% {
+          transform: translateX(-100%);
+        }
+      }
+
+      .spotify-connect {
+        margin-top: 12px;
+        border-radius: 18px;
       }
 
       @keyframes tasteFloat {
@@ -235,17 +250,19 @@
     <!-- modal -->
     <div class="modal" id="playlistModal">
       <div class="modal-content">
-        <h3 id="modalName"></h3>
         <div class="taste-signature" id="tasteSignature">
           <div class="taste-gradient"></div>
-          <div class="taste-spark">taste signature</div>
           <div class="taste-overlay">
             <div class="taste-title" id="tasteTitle"></div>
-            <div class="taste-words" id="tasteWords"></div>
+            <div class="track-marquee paused" id="trackMarquee">
+              <div class="track-marquee-inner" id="trackMarqueeText"></div>
+            </div>
           </div>
         </div>
         <div class="preview-status" id="previewStatus"></div>
-        <audio id="tastePreviewAudio" preload="auto"></audio>
+        <button class="secondary spotify-connect" id="spotifyConnectBtn">
+          connect spotify
+        </button>
       </div>
     </div>
 
@@ -671,67 +688,274 @@
         return [c1, c2, c3];
       }
 
-      const previewAudio = document.getElementById("tastePreviewAudio");
       const previewStatusEl = document.getElementById("previewStatus");
-      let previewQueue = [];
-      let previewIndex = 0;
+      const spotifyConnectBtn = document.getElementById("spotifyConnectBtn");
+      const trackMarqueeEl = document.getElementById("trackMarquee");
+      const trackMarqueeText = document.getElementById("trackMarqueeText");
+      const spotifyLoginUrl = `/api/spotify/login?next=${encodeURIComponent(
+        window.location.pathname,
+      )}`;
 
-      function extractPreviewUrls(tracks) {
-        return (tracks || [])
+      let spotifyPlayer = null;
+      let spotifyDeviceId = null;
+      let spotifySdkPromise = null;
+      let spotifyReadyPromise = null;
+      let spotifyTransferred = false;
+      let spotifyQueue = [];
+      let spotifyIndex = 0;
+      let spotifyTimer = null;
+
+      spotifyConnectBtn.style.display = "none";
+      spotifyConnectBtn.onclick = () => {
+        window.location.href = spotifyLoginUrl;
+      };
+
+      function spotifyUriFromId(id) {
+        if (!id) return "";
+        if (/^[A-Za-z0-9]{22}$/.test(id)) {
+          return `spotify:track:${id}`;
+        }
+        return "";
+      }
+
+      function normalizeDurationMs(track) {
+        const raw =
+          track?.duration_ms ?? track?.durationMs ?? track?.duration ?? null;
+        if (typeof raw !== "number" || Number.isNaN(raw)) return null;
+        if (raw <= 0) return null;
+        if (raw < 1000) return Math.round(raw * 1000);
+        return Math.round(raw);
+      }
+
+      function buildSpotifyQueue(tracks) {
+        const queue = [];
+        const seen = new Set();
+
+        (tracks || []).forEach((track) => {
+          const uri =
+            track?.uri ||
+            track?.spotify_uri ||
+            track?.spotifyUri ||
+            spotifyUriFromId(track?.id);
+          if (!uri || seen.has(uri)) return;
+          seen.add(uri);
+          queue.push({
+            uri,
+            durationMs: normalizeDurationMs(track),
+          });
+        });
+
+        return queue;
+      }
+
+      function extractTrackIds(tracks) {
+        const ids = (tracks || [])
           .map((track) => {
-            return (
-              track.preview_url ||
-              track.previewUrl ||
-              track.preview ||
-              track.preview_url_30 ||
-              track.audio_url ||
-              track.audioUrl ||
-              ""
-            );
+            if (track?.id && /^[A-Za-z0-9]{22}$/.test(track.id)) {
+              return track.id;
+            }
+            const uri =
+              track?.uri || track?.spotify_uri || track?.spotifyUri || "";
+            if (uri.startsWith("spotify:track:")) {
+              return uri.split(":").pop();
+            }
+            return "";
           })
-          .filter((url) => typeof url === "string" && url.trim() !== "");
+          .filter((id) => id);
+
+        return Array.from(new Set(ids)).slice(0, 100);
+      }
+
+      function renderTrackMarquee(tracks) {
+        if (!trackMarqueeEl || !trackMarqueeText) return;
+        const items = (tracks || []).map((track) => {
+          const name = track?.name || "track";
+          const artist = track?.artist ? ` — ${track.artist}` : "";
+          return `${name}${artist}`;
+        });
+        const text = items.length ? items.join("   •   ") : "no tracks";
+        trackMarqueeText.textContent = text;
+        trackMarqueeEl.classList.toggle("paused", text.length < 40);
+      }
+
+
+      function showConnectPrompt(message = "connect spotify to listen") {
+        previewStatusEl.textContent = "";
+        spotifyConnectBtn.style.display = "block";
+      }
+
+      function hideConnectPrompt() {
+        spotifyConnectBtn.style.display = "none";
+      }
+
+      async function getSpotifyToken() {
+        const res = await apiCall("/spotify/token");
+        return res.access_token;
+      }
+
+      function loadSpotifySdk() {
+        if (window.Spotify) return Promise.resolve();
+        if (spotifySdkPromise) return spotifySdkPromise;
+
+        spotifySdkPromise = new Promise((resolve) => {
+          window.onSpotifyWebPlaybackSDKReady = () => resolve();
+          const script = document.createElement("script");
+          script.src = "https://sdk.scdn.co/spotify-player.js";
+          document.head.appendChild(script);
+        });
+
+        return spotifySdkPromise;
+      }
+
+      async function ensureSpotifyPlayer() {
+        if (spotifyReadyPromise) return spotifyReadyPromise;
+
+        spotifyReadyPromise = new Promise(async (resolve, reject) => {
+          try {
+            await loadSpotifySdk();
+            await getSpotifyToken();
+          } catch (error) {
+            showConnectPrompt();
+            reject(error);
+            return;
+          }
+
+          spotifyPlayer = new Spotify.Player({
+            name: "About Nine",
+            getOAuthToken: async (cb) => {
+              try {
+                const token = await getSpotifyToken();
+                cb(token);
+              } catch {
+                showConnectPrompt();
+              }
+            },
+            volume: 0.8,
+          });
+
+          spotifyPlayer.addListener("ready", ({ device_id }) => {
+            spotifyDeviceId = device_id;
+            spotifyTransferred = false;
+            resolve(spotifyPlayer);
+          });
+
+          spotifyPlayer.addListener("not_ready", () => {
+            spotifyDeviceId = null;
+          });
+
+          spotifyPlayer.addListener("initialization_error", () => {
+            showConnectPrompt("spotify player failed to start");
+          });
+
+          spotifyPlayer.addListener("authentication_error", () => {
+            showConnectPrompt();
+          });
+
+          spotifyPlayer.addListener("account_error", () => {
+            showConnectPrompt("spotify premium required");
+          });
+
+          spotifyPlayer.connect();
+        });
+
+        return spotifyReadyPromise;
+      }
+
+      async function ensurePlaybackDevice(token) {
+        if (!spotifyDeviceId || spotifyTransferred) return;
+        await fetch("https://api.spotify.com/v1/me/player", {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            device_ids: [spotifyDeviceId],
+            play: false,
+          }),
+        });
+        spotifyTransferred = true;
       }
 
       function updatePreviewStatus() {
-        if (!previewQueue.length) {
-          previewStatusEl.textContent = "no preview available";
+        if (!spotifyQueue.length) {
+          previewStatusEl.textContent = "";
           return;
         }
         previewStatusEl.textContent = "";
       }
 
-      function playPreviewAt(index) {
-        if (!previewQueue.length) return;
-        previewIndex = index % previewQueue.length;
-        previewAudio.src = previewQueue[previewIndex];
+      const HIGHLIGHT_MS = 30000;
+
+      async function playSpotifyAt(index) {
+        if (!spotifyQueue.length) return;
+        spotifyIndex = index % spotifyQueue.length;
+        const current = spotifyQueue[spotifyIndex];
+        if (!current) return;
+
+        try {
+          await ensureSpotifyPlayer();
+          hideConnectPrompt();
+        } catch {
+          return;
+        }
+
+        let token = null;
+        try {
+          token = await getSpotifyToken();
+        } catch {
+          showConnectPrompt();
+          return;
+        }
+        await ensurePlaybackDevice(token);
+
+        const maxStart =
+          current.durationMs && current.durationMs > HIGHLIGHT_MS
+            ? current.durationMs - HIGHLIGHT_MS
+            : 0;
+        const startMs = maxStart > 0 ? Math.floor(Math.random() * maxStart) : 0;
+
+        await fetch(
+          `https://api.spotify.com/v1/me/player/play?device_id=${spotifyDeviceId}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              uris: [current.uri],
+              position_ms: startMs,
+            }),
+          },
+        );
+
         updatePreviewStatus();
-        previewAudio
-          .play()
-          .catch(() => {
-            previewStatusEl.textContent = "tap to play preview";
-          });
+        clearTimeout(spotifyTimer);
+        spotifyTimer = setTimeout(() => {
+          playSpotifyAt(spotifyIndex + 1);
+        }, HIGHLIGHT_MS);
       }
 
-      previewAudio.addEventListener("ended", () => {
-        if (!previewQueue.length) return;
-        setTimeout(() => {
-          playPreviewAt(previewIndex + 1);
-        }, 300);
-      });
+      function stopSpotifyPreview() {
+        clearTimeout(spotifyTimer);
+        spotifyTimer = null;
+        if (spotifyPlayer) {
+          spotifyPlayer.pause();
+        }
+      }
 
       document
         .getElementById("tasteSignature")
         .addEventListener("click", () => {
-          if (!previewQueue.length) return;
-          playPreviewAt(previewIndex);
+          if (!spotifyQueue.length) return;
+          playSpotifyAt(spotifyIndex);
         });
 
       function openPlaylist(u) {
         selectedUser = u;
 
         const firstName = u.first_name || u.firstName;
-        document.getElementById("modalName").innerText =
-          firstName + "'s playlist";
 
         const playlistSeed = (u.playlist || [])
           .map((track) => `${track.name || ""}${track.artist || ""}`)
@@ -743,15 +967,13 @@
         signatureEl.style.setProperty("--sig-c2", c2);
         signatureEl.style.setProperty("--sig-c3", c3);
         document.getElementById("tasteTitle").innerText = `${firstName}'s taste`;
-        document.getElementById("tasteWords").innerText = pickTasteWords(
-          signatureSeed,
-        ).join(" · ");
+        renderTrackMarquee(u.playlist || []);
 
-        previewQueue = extractPreviewUrls(u.playlist || []);
-        previewIndex = 0;
+        spotifyQueue = buildSpotifyQueue(u.playlist || []);
+        spotifyIndex = 0;
         updatePreviewStatus();
-        if (previewQueue.length) {
-          playPreviewAt(0);
+        if (spotifyQueue.length) {
+          playSpotifyAt(0);
         }
 
         document.getElementById("playlistModal").classList.add("active");
@@ -760,10 +982,9 @@
       document.getElementById("playlistModal").onclick = (e) => {
         // 모달 배경만 클릭했을 때만 닫기
         if (e.target.id === "playlistModal") {
-          previewAudio.pause();
-          previewAudio.removeAttribute("src");
-          previewQueue = [];
-          previewIndex = 0;
+          stopSpotifyPreview();
+          spotifyQueue = [];
+          spotifyIndex = 0;
           document.getElementById("playlistModal").classList.remove("active");
         }
       };
@@ -771,10 +992,9 @@
       // 또는 ESC 키로도 닫을 수 있게
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
-          previewAudio.pause();
-          previewAudio.removeAttribute("src");
-          previewQueue = [];
-          previewIndex = 0;
+          stopSpotifyPreview();
+          spotifyQueue = [];
+          spotifyIndex = 0;
           document.getElementById("playlistModal").classList.remove("active");
         }
       });
