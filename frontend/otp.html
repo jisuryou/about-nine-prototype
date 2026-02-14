@@ -25,7 +25,8 @@
 
         <div class="timer-text">
           haven't received it? <span id="timer">02:59</span>
-          <span class="resend-link hidden" id="resendLink" onclick="resendOTP()"
+          <br>
+          <span class="resend-link" id="resendLink" onclick="resendOTP()"
             >resend now</span
           >
         </div>
@@ -34,12 +35,16 @@
       <button id="nextBtn" onclick="verifyOTP()" disabled>next</button>
     </div>
 
+    <!-- Firebase invisible recaptcha -->
+    <div id="recaptcha-container"></div>
+
     <script src="js/common.js"></script>
     <script>
       const inputs = document.querySelectorAll(".code-input");
       const nextBtn = document.getElementById("nextBtn");
       let timerSeconds = 179; // 2:59
       let timerInterval;
+      let resendInProgress = false;
 
       // 자동 포커스 및 입력 처리
       inputs.forEach((input, index) => {
@@ -84,6 +89,7 @@
       }
 
       function startTimer() {
+        clearInterval(timerInterval);
         timerInterval = setInterval(() => {
           timerSeconds--;
           const mins = Math.floor(timerSeconds / 60);
@@ -93,10 +99,49 @@
 
           if (timerSeconds <= 0) {
             clearInterval(timerInterval);
-            document.getElementById("timer").classList.add("hidden");
-            document.getElementById("resendLink").classList.remove("hidden");
+            document.getElementById("timer").textContent = "00:00";
           }
         }, 1000);
+      }
+
+      function resetTimer() {
+        timerSeconds = 179;
+        startTimer();
+      }
+
+      async function resendOTP() {
+        if (resendInProgress) return;
+        resendInProgress = true;
+        hideError("error");
+
+        const phone = getFromLocal("phone");
+        if (!phone) {
+          showError("error", "phone not found, please go back");
+          resendInProgress = false;
+          return;
+        }
+
+        try {
+          showLoading("resending code...");
+
+          if (!window.recaptchaVerifier) {
+            initRecaptcha();
+          }
+
+          await sendFirebaseOTP(phone);
+
+          inputs.forEach((i) => (i.value = ""));
+          inputs[0].focus();
+          checkComplete();
+          resetTimer();
+          hideLoading();
+        } catch (e) {
+          console.error("RESEND FAIL:", e);
+          hideLoading();
+          showError("error", "failed to resend code");
+        } finally {
+          resendInProgress = false;
+        }
       }
 
       async function verifyOTP() {
