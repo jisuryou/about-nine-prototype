@@ -295,28 +295,13 @@
         margin-bottom: 40px;
       }
 
-      .score-circle-bg {
+      .score-circle-image {
         position: absolute;
         width: 100%;
         height: 100%;
-        border-radius: 50%;
-        background: radial-gradient(
-          circle,
-          rgba(255, 255, 255, 0.1) 0%,
-          transparent 70%
-        );
-      }
-
-      .score-circle-pattern {
-        position: absolute;
-        width: 200px;
-        height: 200px;
-        border-radius: 50%;
-      }
-
-      .score-circle-pattern svg {
-        width: 100%;
-        height: 100%;
+        object-fit: contain;
+        z-index: 1;
+        pointer-events: none;
       }
 
       .score-circle-text {
@@ -327,13 +312,11 @@
 
       .score-rating {
         font-size: 45px;
-        font-weight: 300;
         color: white;
       }
 
       .score-number {
         font-size: 38px;
-        font-weight: 700;
         color: white;
       }
 
@@ -635,37 +618,13 @@
     <div class="analysis-bottom-sheet" id="analysisSheet">
       <div class="sheet-handle"></div>
 
-      <!-- 원형 그래픽 -->
+      <!-- 화학 이미지 -->
       <div class="score-circle-container">
-        <div class="score-circle-bg"></div>
-        <div class="score-circle-pattern">
-          <svg viewBox="0 0 200 200">
-            <circle
-              cx="100"
-              cy="100"
-              r="80"
-              fill="none"
-              stroke="rgba(255,255,255,0.2)"
-              stroke-width="1"
-            />
-            <circle
-              cx="100"
-              cy="100"
-              r="60"
-              fill="none"
-              stroke="rgba(255,255,255,0.15)"
-              stroke-width="1"
-            />
-            <circle
-              cx="100"
-              cy="100"
-              r="40"
-              fill="none"
-              stroke="rgba(255,255,255,0.1)"
-              stroke-width="1"
-            />
-          </svg>
-        </div>
+        <img
+          class="score-circle-image"
+          src="images/chemistry.png"
+          alt="chemistry score"
+        />
         <div class="score-circle-text">
           <div class="score-rating" id="sheetRating">fair</div>
           <div class="score-number" id="sheetScore">80</div>
