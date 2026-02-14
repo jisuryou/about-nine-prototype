@@ -76,7 +76,7 @@
       }
     </style>
   </head>
-  <body onclick="enterApp()">
+  <body>
     <div class="container">
       <div>
         <img src="images/asterisk.png" alt="asterisk" class="brand-icon" />
@@ -101,6 +101,8 @@
           navigateTo("invite-code.html");
         }
       }
+
+      document.body.addEventListener("click", enterApp);
     </script>
   </body>
 </html>
